@@ -1,222 +1,315 @@
-// frontend/src/components/MobileInterface.jsx
-
-import { useParams } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { supabase } from '../services/supabaseClient';
+import { Clock, Users, Heart, FileText, User, ChevronRight, Wifi, WifiOff } from 'lucide-react';
 
-import {
-  Home, MessageCircle, User, Calendar, MapPin, Menu, X,
-  Phone, Bell, Settings, LogOut, ChevronRight, Clock,
-  Activity, FileText, CreditCard, HelpCircle
-} from 'lucide-react';
+const HospitalPatientApp = () => {
+  const [patientData, setPatientData] = useState({
+    name: "Sarah Johnson",
+    age: 34,
+    gender: "Female",
+    patientId: "PT-2024-5847",
+    medicalHistory: ["Hypertension", "Type 2 Diabetes"],
+    lastVisit: "2024-05-15"
+  });
 
-const MobileInterface = () => {
-  const [activeTab, setActiveTab] = useState('home');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [userProfile, setUserProfile] = useState(null);
-  const { patientId } = useParams();
+  const [queueData, setQueueData] = useState({
+    position: 7,
+    estimatedWaitTime: 25,
+    totalInQueue: 12,
+    currentlyServing: "PT-2024-5840"
+  });
 
-  const tabs = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'chat', label: 'AI Chat', icon: MessageCircle },
-    { id: 'appointments', label: 'Appointments', icon: Calendar },
-    { id: 'profile', label: 'Profile', icon: User }
-  ];
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [isConnected, setIsConnected] = useState(true);
+  const [preConsultData, setPreConsultData] = useState({
+    symptoms: '',
+    painLevel: 5,
+    duration: '',
+    medications: '',
+    allergies: '',
+    concerns: ''
+  });
 
-  const quickActions = [
-    { id: 'book', label: 'Book Appointment', icon: Calendar, color: 'blue' },
-    { id: 'emergency', label: 'Emergency', icon: Phone, color: 'red' },
-    { id: 'directions', label: 'Directions', icon: MapPin, color: 'green' },
-    { id: 'vitals', label: 'Health Check', icon: Activity, color: 'purple' }
-  ];
-
+  // Simulate real-time queue updates
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', patientId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-      } else {
-        setUserProfile(data);
+    const interval = setInterval(() => {
+      if (Math.random() > 0.7) {
+        setQueueData(prev => ({
+          ...prev,
+          position: Math.max(1, prev.position - 1),
+          estimatedWaitTime: Math.max(5, prev.estimatedWaitTime - 3)
+        }));
       }
-    };
+    }, 30000);
 
-    const fetchNotifications = async () => {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false });
+    return () => clearInterval(interval);
+  }, []);
 
-      if (error) {
-        console.error('Error fetching notifications:', error);
-      } else {
-        setNotifications(data);
+  const getHealthTips = () => {
+    // Simulate contextual health tips based on patient data
+    const tips = [
+      {
+        title: "Blood Pressure Management",
+        content: "Based on your hypertension history, try deep breathing exercises while waiting.",
+        relevant: patientData.medicalHistory.includes("Hypertension")
+      },
+      {
+        title: "Blood Sugar Monitoring",
+        content: "Keep track of when you last ate to help your doctor assess your diabetes management.",
+        relevant: patientData.medicalHistory.includes("Type 2 Diabetes")
+      },
+      {
+        title: "Stay Hydrated",
+        content: "Drink water regularly, especially if you've been fasting for tests.",
+        relevant: true
       }
-    };
+    ].filter(tip => tip.relevant);
 
-    if (patientId) {
-      fetchUserProfile();
-      fetchNotifications();
-    }
-  }, [patientId]);
-
-  const HomeScreen = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold">Welcome back,</h2>
-            <p className="text-blue-100">{userProfile?.name}</p>
-          </div>
-          <div className="relative">
-            <Bell className="w-6 h-6" />
-            {notifications.length > 0 && (
-              <div className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                <span className="text-xs font-bold">{notifications.length}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {userProfile?.nextAppointment && (
-          <div className="bg-white/20 rounded-xl p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4" />
-              <span className="text-sm">Next Appointment</span>
-            </div>
-            <p className="font-semibold mt-1">{userProfile.nextAppointment}</p>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-4">
-          {quickActions.map(action => (
-            <button
-              key={action.id}
-              className={`p-4 rounded-xl border-2 border-transparent hover:border-${action.color}-200 bg-${action.color}-50 hover:bg-${action.color}-100 transition-all duration-200 transform hover:scale-105`}
-            >
-              <action.icon className={`w-8 h-8 text-${action.color}-600 mx-auto mb-2`} />
-              <p className={`text-sm font-medium text-${action.color}-800`}>{action.label}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const ChatScreen = () => (
-    <div className="p-4 text-gray-700">
-      <p>Chat with our AI Assistant will be available soon!</p>
-    </div>
-  );
-
-  const AppointmentsScreen = () => (
-    <div className="p-4 text-gray-700">
-      <p>View and manage your appointments here.</p>
-    </div>
-  );
-
-  const ProfileScreen = () => (
-    <div className="p-4 text-gray-700 space-y-4">
-      <div className="text-center">
-        <div className="w-20 h-20 bg-blue-500 rounded-full mx-auto text-white flex items-center justify-center">
-          <User className="w-10 h-10" />
-        </div>
-        <h2 className="mt-2 text-xl font-bold">{userProfile?.name}</h2>
-        <p className="text-sm text-gray-500">{userProfile?.nric}</p>
-      </div>
-      <div className="text-sm">
-        <p><strong>Phone:</strong> {userProfile?.phone}</p>
-        <p><strong>NRIC:</strong> {userProfile?.nric}</p>
-      </div>
-    </div>
-  );
-
-  const renderActiveScreen = () => {
-    switch (activeTab) {
-      case 'home': return <HomeScreen />;
-      case 'chat': return <ChatScreen />;
-      case 'appointments': return <AppointmentsScreen />;
-      case 'profile': return <ProfileScreen />;
-      default: return <HomeScreen />;
-    }
+    return tips;
   };
 
-  if (!userProfile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Loading patient info...
-      </div>
-    );
-  }
+  const handlePreConsultSubmit = () => {
+    // In real app, this would send data to backend
+    console.log('Pre-consultation data submitted:', preConsultData);
+    alert('Pre-consultation information submitted successfully!');
+    setCurrentView('dashboard');
+  };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto">
-      {/* Header */}
-      <div className="bg-white shadow-sm p-4 flex items-center justify-between">
-        <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-gray-100 rounded-lg">
-          <Menu className="w-6 h-6 text-gray-600" />
-        </button>
-        <h1 className="text-lg font-semibold text-gray-800">
-          {tabs.find(tab => tab.id === activeTab)?.label}
-        </h1>
-        <div className="relative">
-          <Bell className="w-6 h-6 text-gray-600" />
-          {notifications.length > 0 && (
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
-          )}
+  const StatusIndicator = ({ connected }) => (
+    <div className={`flex items-center text-sm ${connected ? 'text-green-600' : 'text-red-600'}`}>
+      {connected ? <Wifi className="w-4 h-4 mr-1" /> : <WifiOff className="w-4 h-4 mr-1" />}
+      {connected ? 'Connected' : 'Offline'}
+    </div>
+  );
+
+  const Dashboard = () => (
+    <div className="space-y-6">
+      {/* Patient Info Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center space-x-4">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+            <User className="w-8 h-8 text-blue-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold text-gray-900">{patientData.name}</h2>
+            <p className="text-gray-600">{patientData.age} years • {patientData.gender}</p>
+            <p className="text-sm text-gray-500">ID: {patientData.patientId}</p>
+          </div>
         </div>
       </div>
 
-      {/* Main */}
-      <div className="flex-1 overflow-y-auto p-4">{renderActiveScreen()}</div>
+      {/* Queue Status Card */}
+      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Queue Status</h3>
+          <Users className="w-6 h-6" />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center">
+            <div className="text-3xl font-bold">{queueData.position}</div>
+            <div className="text-blue-100 text-sm">People ahead</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold">{queueData.estimatedWaitTime}</div>
+            <div className="text-blue-100 text-sm">Minutes wait</div>
+          </div>
+        </div>
+        
+        <div className="mt-4 pt-4 border-t border-blue-400">
+          <div className="flex items-center text-sm text-blue-100">
+            <Clock className="w-4 h-4 mr-2" />
+            Currently serving: {queueData.currentlyServing}
+          </div>
+        </div>
+      </div>
 
-      {/* Bottom Nav */}
-      <div className="bg-white border-t border-gray-200 px-4 py-2">
-        <div className="flex justify-around">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors ${
-                activeTab === tab.id ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              <tab.icon className="w-5 h-5 mb-1" />
-              <span className="text-xs">{tab.label}</span>
-            </button>
+      {/* Action Buttons */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setCurrentView('healthTips')}
+          className="w-full bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl p-4 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center">
+            <Heart className="w-6 h-6 text-green-600 mr-3" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">Health Tips</div>
+              <div className="text-sm text-gray-600">Personalized recommendations</div>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-gray-400" />
+        </button>
+
+        <button
+          onClick={() => setCurrentView('preConsult')}
+          className="w-full bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl p-4 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center">
+            <FileText className="w-6 h-6 text-purple-600 mr-3" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">Pre-Consultation Form</div>
+              <div className="text-sm text-gray-600">Help your doctor prepare</div>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-gray-400" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const HealthTips = () => {
+    const tips = getHealthTips();
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setCurrentView('dashboard')}
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
+            ← Back
+          </button>
+          <h2 className="text-xl font-semibold">Health Tips</h2>
+          <div></div>
+        </div>
+
+        <div className="bg-blue-50 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            These tips are personalized based on your medical history and current visit.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {tips.map((tip, index) => (
+            <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 className="font-semibold text-gray-900 mb-2">{tip.title}</h3>
+              <p className="text-gray-700 leading-relaxed">{tip.content}</p>
+            </div>
           ))}
         </div>
       </div>
+    );
+  };
 
-      {/* Sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black bg-opacity-50" onClick={() => setSidebarOpen(false)} />
-          <div className="w-80 bg-white shadow-xl">
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Menu</h2>
-                <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            {/* Additional sidebar content can go here */}
+  const PreConsultForm = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setCurrentView('dashboard')}
+          className="text-blue-600 hover:text-blue-700 font-medium"
+        >
+          ← Back
+        </button>
+        <h2 className="text-xl font-semibold">Pre-Consultation</h2>
+        <div></div>
+      </div>
+
+      <div className="bg-green-50 rounded-lg p-4 mb-6">
+        <p className="text-sm text-green-800">
+          Please provide information about your current condition. This helps your doctor prepare for your visit.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            What symptoms are you experiencing?
+          </label>
+          <textarea
+            value={preConsultData.symptoms}
+            onChange={(e) => setPreConsultData({...preConsultData, symptoms: e.target.value})}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows="3"
+            placeholder="Describe your symptoms..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Pain Level (1-10)
+          </label>
+          <div className="flex items-center space-x-4">
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={preConsultData.painLevel}
+              onChange={(e) => setPreConsultData({...preConsultData, painLevel: e.target.value})}
+              className="flex-1"
+            />
+            <span className="font-semibold text-lg w-8">{preConsultData.painLevel}</span>
           </div>
         </div>
-      )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            How long have you had these symptoms?
+          </label>
+          <input
+            type="text"
+            value={preConsultData.duration}
+            onChange={(e) => setPreConsultData({...preConsultData, duration: e.target.value})}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="e.g., 3 days, 1 week..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Current medications or treatments
+          </label>
+          <textarea
+            value={preConsultData.medications}
+            onChange={(e) => setPreConsultData({...preConsultData, medications: e.target.value})}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows="2"
+            placeholder="List any medications, dosages, or treatments..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Any specific concerns or questions?
+          </label>
+          <textarea
+            value={preConsultData.concerns}
+            onChange={(e) => setPreConsultData({...preConsultData, concerns: e.target.value})}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows="3"
+            placeholder="What would you like to discuss with your doctor?"
+          />
+        </div>
+
+        <button
+          onClick={handlePreConsultSubmit}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+        >
+          Submit Information
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Patient Portal</h1>
+            <p className="text-sm text-gray-600">General Hospital</p>
+          </div>
+          <StatusIndicator connected={isConnected} />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="px-4 py-6 max-w-md mx-auto">
+        {currentView === 'dashboard' && <Dashboard />}
+        {currentView === 'healthTips' && <HealthTips />}
+        {currentView === 'preConsult' && <PreConsultForm />}
+      </div>
     </div>
   );
 };
 
-export default MobileInterface;
+export default HospitalPatientApp;

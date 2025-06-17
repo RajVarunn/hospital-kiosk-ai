@@ -26,7 +26,7 @@ function App() {
         {/* Routes */}
         <Routes>
           <Route path="/" element={<KioskInterface />} />
-          <Route path="/mobile/:patientId" element={<MobileInterface />} /> 
+          <Route path="/mobile" element={<MobileInterface />} /> 
           <Route path="/dashboard" element={<StaffDashboard />} />
         </Routes>
       </div>
