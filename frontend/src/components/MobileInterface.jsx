@@ -20,14 +20,21 @@ const HospitalPatientApp = () => {
 
   const [currentView, setCurrentView] = useState('dashboard');
   const [isConnected, setIsConnected] = useState(true);
-  const [preConsultData, setPreConsultData] = useState({
-    symptoms: '',
-    painLevel: 5,
-    duration: '',
-    medications: '',
-    allergies: '',
-    concerns: ''
-  });
+const [preConsultData, setPreConsultData] = useState({
+  painLevel: 5,
+  duration: '',
+  medications: '',
+  allergies: '',
+  concerns: '',
+  familyHistory: '',
+  lifestyle: {
+    smoking: false,
+    alcohol: false,
+    exercise: false
+  },
+  travelExposure: '',
+  mentalState: []
+});
 
   // Simulate real-time queue updates
   useEffect(() => {
@@ -190,103 +197,177 @@ const HospitalPatientApp = () => {
     );
   };
 
-  const PreConsultForm = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setCurrentView('dashboard')}
-          className="text-blue-600 hover:text-blue-700 font-medium"
-        >
-          ← Back
-        </button>
-        <h2 className="text-xl font-semibold">Pre-Consultation</h2>
-        <div></div>
-      </div>
-
-      <div className="bg-green-50 rounded-lg p-4 mb-6">
-        <p className="text-sm text-green-800">
-          Please provide information about your current condition. This helps your doctor prepare for your visit.
-        </p>
-      </div>
-
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            What symptoms are you experiencing?
-          </label>
-          <textarea
-            value={preConsultData.symptoms}
-            onChange={(e) => setPreConsultData({...preConsultData, symptoms: e.target.value})}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            rows="3"
-            placeholder="Describe your symptoms..."
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Pain Level (1-10)
-          </label>
-          <div className="flex items-center space-x-4">
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={preConsultData.painLevel}
-              onChange={(e) => setPreConsultData({...preConsultData, painLevel: e.target.value})}
-              className="flex-1"
-            />
-            <span className="font-semibold text-lg w-8">{preConsultData.painLevel}</span>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            How long have you had these symptoms?
-          </label>
-          <input
-            type="text"
-            value={preConsultData.duration}
-            onChange={(e) => setPreConsultData({...preConsultData, duration: e.target.value})}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="e.g., 3 days, 1 week..."
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Current medications or treatments
-          </label>
-          <textarea
-            value={preConsultData.medications}
-            onChange={(e) => setPreConsultData({...preConsultData, medications: e.target.value})}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            rows="2"
-            placeholder="List any medications, dosages, or treatments..."
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Any specific concerns or questions?
-          </label>
-          <textarea
-            value={preConsultData.concerns}
-            onChange={(e) => setPreConsultData({...preConsultData, concerns: e.target.value})}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            rows="3"
-            placeholder="What would you like to discuss with your doctor?"
-          />
-        </div>
-
-        <button
-          onClick={handlePreConsultSubmit}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-        >
-          Submit Information
-        </button>
-      </div>
+const PreConsultForm = () => (
+  <div className="space-y-4">
+    <div className="flex items-center justify-between">
+      <button
+        onClick={() => setCurrentView('dashboard')}
+        className="text-blue-600 hover:text-blue-700 font-medium"
+      >
+        ← Back
+      </button>
+      <h2 className="text-xl font-semibold">Pre-Consultation</h2>
+      <div></div>
     </div>
+
+    <div className="bg-green-50 rounded-lg p-4 mb-6">
+      <p className="text-sm text-green-800">
+        Please provide additional information to help your doctor prepare for your visit.
+      </p>
+    </div>
+
+    <div className="space-y-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Pain Level (1–10)
+        </label>
+        <div className="flex items-center space-x-4">
+          <input
+            type="range"
+            min="1"
+            max="10"
+            value={preConsultData.painLevel}
+            onChange={(e) => setPreConsultData({ ...preConsultData, painLevel: e.target.value })}
+            className="flex-1"
+          />
+          <span className="font-semibold text-lg w-8">{preConsultData.painLevel}</span>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          How long have you had these symptoms?
+        </label>
+        <input
+          type="text"
+          value={preConsultData.duration}
+          onChange={(e) => setPreConsultData({ ...preConsultData, duration: e.target.value })}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="e.g., 3 days, 1 week..."
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Current medications or treatments
+        </label>
+        <textarea
+          value={preConsultData.medications}
+          onChange={(e) => setPreConsultData({ ...preConsultData, medications: e.target.value })}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          rows="2"
+          placeholder="List any medications, dosages, or treatments..."
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Allergies (e.g., medication, food, latex)
+        </label>
+        <input
+          type="text"
+          value={preConsultData.allergies}
+          onChange={(e) => setPreConsultData({ ...preConsultData, allergies: e.target.value })}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="e.g., Penicillin, shellfish..."
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Family medical history (if any)
+        </label>
+        <input
+          type="text"
+          value={preConsultData.familyHistory}
+          onChange={(e) => setPreConsultData({ ...preConsultData, familyHistory: e.target.value })}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="e.g., Heart disease, diabetes"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Lifestyle habits</label>
+        <div className="space-y-2">
+          {['smoking', 'alcohol', 'exercise'].map((key) => (
+            <label key={key} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={preConsultData.lifestyle[key]}
+                onChange={(e) =>
+                  setPreConsultData({
+                    ...preConsultData,
+                    lifestyle: {
+                      ...preConsultData.lifestyle,
+                      [key]: e.target.checked,
+                    },
+                  })
+                }
+              />
+              <span className="text-sm text-gray-700 capitalize">{key}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Recent travel or illness exposure
+        </label>
+        <input
+          type="text"
+          value={preConsultData.travelExposure}
+          onChange={(e) => setPreConsultData({ ...preConsultData, travelExposure: e.target.value })}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="e.g., Travelled overseas last week"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Recent emotional or mental health concerns
+        </label>
+        <div className="space-y-2">
+          {['Stress', 'Poor sleep', 'Low mood', 'None'].map((item) => (
+            <label key={item} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={preConsultData.mentalState.includes(item)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  const updated = checked
+                    ? [...preConsultData.mentalState, item]
+                    : preConsultData.mentalState.filter((i) => i !== item);
+                  setPreConsultData({ ...preConsultData, mentalState: updated });
+                }}
+              />
+              <span className="text-sm text-gray-700">{item}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Any specific concerns or questions?
+        </label>
+        <textarea
+          value={preConsultData.concerns}
+          onChange={(e) => setPreConsultData({ ...preConsultData, concerns: e.target.value })}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          rows="3"
+          placeholder="What would you like to discuss with your doctor?"
+        />
+      </div>
+
+      <button
+        onClick={handlePreConsultSubmit}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+      >
+        Submit Information
+      </button>
+    </div>
+  </div>
   );
 
   return (
