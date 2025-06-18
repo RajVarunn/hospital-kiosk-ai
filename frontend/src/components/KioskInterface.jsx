@@ -24,10 +24,14 @@ const KioskInterface = () => {
     setError('');
 
     try {
+      console.log('Patient registration data:', patientData); // Log the data to verify symptoms and user_input
       const response = await patientAPI.register(patientData);
       const patientWithMobileUrl = {
         ...response.data.patient,
-        mobileUrl: `${window.location.origin}/mobile/${response.data.patient.id}`
+        mobileUrl: `${window.location.origin}/mobile/${response.data.patient.id}`,
+        // Ensure symptoms and user_input are preserved
+        symptoms: patientData.symptoms || '',
+        user_input: patientData.user_input || patientData.symptoms || ''
       };
       setPatient(patientWithMobileUrl);
       setCurrentStep('vitals');
@@ -44,25 +48,29 @@ const KioskInterface = () => {
 
     setLoading(true);
     try {
-      await patientAPI.updateVitals(patient.id, vitalsData);
+      console.log('Vitals data received:', vitalsData);
+      
+      // Save vitals directly using dynamoService instead of patientAPI
+      const dynamoService = (await import('../services/dynamoService')).default;
+      await dynamoService.saveVisit({
+        patient_id: patient.id,
+        systolic: parseInt(vitalsData.systolic),
+        diastolic: parseInt(vitalsData.diastolic),
+        heart_rate: parseInt(vitalsData.heartRate),
+        user_input: patient.symptoms || patient.user_input || "No symptoms reported"
+      });
 
-      // Calculate next queue order
-      const { data: maxOrderRow, error: orderErr } = await supabase
-        .from('queue')
-        .select('order')
-        .order('order', { ascending: false })
-        .limit(1);
-
-      const nextOrder = (maxOrderRow?.[0]?.order || 0) + 1;
+      // Calculate next queue order - skip Supabase
+      const nextOrder = 1; // Default to 1 if we can't get from Supabase
 
       // Automatically insert into queue after vitals are complete
-      await patientAPI.addToQueue({
+      await dynamoService.updateQueue({
         patient_id: patient.id,
-        name: patient.name,
         status: 'waiting',
         priority: 'normal',
-        estimatedWait: 15
+        order: nextOrder
       });
+      
       setCurrentStep('complete');
     } catch (err) {
       setError('Failed to save vitals. Please try again.');

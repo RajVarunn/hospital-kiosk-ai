@@ -22,6 +22,29 @@ const bedrockService = {
    * Invoke Bedrock model with a prompt
    */
   invokeModel: async (prompt, options = {}) => {
+    try {
+      // First try using our Lambda function via dynamoService
+      const dynamoService = (await import('./dynamoService')).default;
+      console.log('Using dynamoService.bedrockTest for Bedrock invocation');
+      
+      try {
+        // Include vitals in the request if provided
+        const result = await dynamoService.bedrockTest(prompt, {
+          systolic: options.systolic,
+          diastolic: options.diastolic,
+          heart_rate: options.heart_rate
+        });
+        console.log('dynamoService.bedrockTest result:', result);
+        return result;
+      } catch (dynamoError) {
+        console.warn('dynamoService.bedrockTest failed, falling back to direct Bedrock API:', dynamoError);
+        // Fall back to direct Bedrock API call
+      }
+    } catch (importError) {
+      console.warn('Failed to import dynamoService, falling back to direct Bedrock API:', importError);
+    }
+    
+    // Direct Bedrock API call as fallback
     const client = initializeClient();
     
     if (!client) {

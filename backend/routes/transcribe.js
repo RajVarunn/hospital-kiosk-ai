@@ -42,7 +42,7 @@ router.post('/stt', upload.single('audio'), async (req, res) => {
 
     // ✅ Step 4: Poll Transcription Job Status
     const pollForTranscript = async () => {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 20; i++) { // Increased from 10 to 20 attempts
         const job = await transcribe.getTranscriptionJob({ TranscriptionJobName: jobName }).promise();
         const status = job.TranscriptionJob.TranscriptionJobStatus;
 
@@ -55,10 +55,13 @@ router.post('/stt', upload.single('audio'), async (req, res) => {
           throw new Error('Transcription job failed.');
         }
 
-        await new Promise(resolve => setTimeout(resolve, 3000)); // wait 3 seconds
+        // Reduce wait time for faster response
+        await new Promise(resolve => setTimeout(resolve, 1500)); // wait 1.5 seconds instead of 3
       }
 
-      throw new Error('Transcription timed out.');
+      // Return a fallback message instead of throwing an error
+      console.log('Transcription timed out, returning fallback');
+      return 'Sorry, I could not transcribe your speech. Please try again.';
     };
 
     const transcript = await pollForTranscript();

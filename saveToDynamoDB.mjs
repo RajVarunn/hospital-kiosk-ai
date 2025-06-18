@@ -4,10 +4,12 @@
  * This function handles data for Patients, Visits, Queue, and Doctors tables.
  */
 
-const AWS = require('aws-sdk');
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 // Initialize the DynamoDB client
-const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDB = DynamoDBDocumentClient.from(client);
 
 /**
  * Lambda function handler
@@ -15,7 +17,7 @@ const dynamoDB = new AWS.DynamoDB.DocumentClient();
  * @param {Object} context - Lambda context
  * @returns {Object} HTTP response
  */
-exports.handler = async (event, context) => {
+export const handler = async (event, context) => {
   // Handle OPTIONS request (CORS preflight)
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -89,7 +91,7 @@ async function savePatient(data) {
     Item: patientItem
   };
   
-  await dynamoDB.put(params).promise();
+  await dynamoDB.send(new PutCommand(params));
   return { message: 'Patient data saved successfully', user_id: data.user_id };
 }
 
@@ -121,7 +123,7 @@ async function saveVisit(data) {
     Item: visitItem
   };
   
-  await dynamoDB.put(params).promise();
+  await dynamoDB.send(new PutCommand(params));
   return { message: 'Visit data saved successfully', patient_id: data.patient_id };
 }
 
@@ -151,7 +153,7 @@ async function updateQueue(data) {
     Item: queueItem
   };
   
-  await dynamoDB.put(params).promise();
+  await dynamoDB.send(new PutCommand(params));
   return { message: 'Queue data updated successfully', patient_id: data.patient_id };
 }
 
@@ -175,7 +177,7 @@ async function saveDoctor(data) {
     Item: doctorItem
   };
   
-  await dynamoDB.put(params).promise();
+  await dynamoDB.send(new PutCommand(params));
   return { message: 'Doctor data saved successfully', doctor_id: data.doctor_id };
 }
 

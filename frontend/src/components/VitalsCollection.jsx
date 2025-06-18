@@ -50,16 +50,37 @@ const VitalsCollection = ({ patient, onComplete }) => {
     const { systolic, diastolic, heartRate } = vitals;
 
     try {
-      // Save to DynamoDB via Lambda
-      await dynamoService.saveVisit({
-        patient_id: patient.id,
-        systolic: parseInt(systolic),
-        diastolic: parseInt(diastolic),
-        heart_rate: parseInt(heartRate)
-      });
+      // Save vitals data first
+      if (onComplete) {
+        // Pass the vitals object directly with symptoms from patient
+        const vitalsWithSymptoms = {
+          ...vitals,
+          user_input: patient.user_input || patient.symptoms || "No symptoms reported"
+        };
+        console.log('Submitting vitals with symptoms:', vitalsWithSymptoms);
+        
+        // Save to DynamoDB
+        await onComplete(vitalsWithSymptoms);
+        
+        // Store vitals and symptoms in sessionStorage for BedrockTest page
+        sessionStorage.setItem('patientVitals', JSON.stringify({
+          systolic: parseInt(systolic),
+          diastolic: parseInt(diastolic),
+          heart_rate: parseInt(heartRate),
+          user_input: patient.user_input || patient.symptoms || "No symptoms reported"
+        }));
+        
+        // Redirect to BedrockTest page
+        console.log('Redirecting to BedrockTest page with vitals:', {
+          systolic: parseInt(systolic),
+          diastolic: parseInt(diastolic),
+          heart_rate: parseInt(heartRate),
+          user_input: patient.user_input || patient.symptoms || "No symptoms reported"
+        });
+        window.location.href = '/bedrock-test';
+      }
       
       setSuccess(true);
-      if (onComplete) onComplete();
     } catch (error) {
       console.error('Save failed:', error);
       alert('Failed to save vitals');
@@ -71,6 +92,14 @@ const VitalsCollection = ({ patient, onComplete }) => {
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto p-6 space-y-6">
       <h2 className="text-2xl font-bold text-center">Vitals for {patient?.name || 'Patient'}</h2>
+      
+      {/* Display symptoms if available */}
+      {(patient?.symptoms || patient?.user_input) && (
+        <div className="bg-blue-50 p-4 rounded-lg mb-4">
+          <h3 className="font-medium text-blue-800">Reported Symptoms:</h3>
+          <p className="text-blue-700">{patient?.symptoms || patient?.user_input}</p>
+        </div>
+      )}
 
       {/* Blood Pressure */}
       <div>
