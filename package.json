@@ -11,9 +11,11 @@
         "concurrently": "^7.6.0"
     },
     "dependencies": {
+        "@aws-sdk/client-bedrock-runtime": "^3.830.0",
         "@react-three/drei": "^10.3.0",
         "@react-three/fiber": "^9.1.2",
         "@supabase/supabase-js": "^2.50.0",
+        "aws-sdk": "^2.1692.0",
         "dotenv": "^16.5.0",
         "node-fetch": "^2.7.0",
         "react": "18.2.0",

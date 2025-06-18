@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, Heart, FileText, User, ChevronRight, Wifi, WifiOff } from 'lucide-react';
+import { Clock, Users, Heart, FileText, User, ChevronRight, Wifi, WifiOff, Map } from 'lucide-react';
+import HospitalNavigation from './HospitalNavigation';
 
 const HospitalPatientApp = () => {
   const [patientData, setPatientData] = useState({
@@ -155,6 +156,20 @@ const [preConsultData, setPreConsultData] = useState({
             <div className="text-left">
               <div className="font-medium text-gray-900">Pre-Consultation Form</div>
               <div className="text-sm text-gray-600">Help your doctor prepare</div>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-gray-400" />
+        </button>
+        
+        <button
+          onClick={() => setCurrentView('navigation')}
+          className="w-full bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl p-4 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center">
+            <Map className="w-6 h-6 text-blue-600 mr-3" />
+            <div className="text-left">
+              <div className="font-medium text-gray-900">Hospital Navigation</div>
+              <div className="text-sm text-gray-600">Live directions to departments</div>
             </div>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -388,6 +403,7 @@ const PreConsultForm = () => (
         {currentView === 'dashboard' && <Dashboard />}
         {currentView === 'healthTips' && <HealthTips />}
         {currentView === 'preConsult' && <PreConsultForm />}
+        {currentView === 'navigation' && <HospitalNavigation onBack={() => setCurrentView('dashboard')} userId={patientData.patientId} />}
       </div>
     </div>
   );

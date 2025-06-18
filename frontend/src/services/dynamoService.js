@@ -4,7 +4,7 @@
 import axios from 'axios';
 
 // API Gateway endpoint that triggers the Lambda function
-const API_ENDPOINT = 'https://lp5utunomb.execute-api.us-west-2.amazonaws.com/prod';
+const API_ENDPOINT = 'https://lp5utunomb.execute-api.us-west-2.amazonaws.com/prod/patient-data';
 
 const dynamoService = {
   /**
@@ -73,6 +73,33 @@ const dynamoService = {
       doctor_id: doctorData.doctor_id,
       doctor_name: doctorData.doctor_name,
       doctor_specialization: doctorData.doctor_specialization || []
+    };
+    
+    return axios.post(API_ENDPOINT, payload);
+  },
+  
+  /**
+   * Get hospital navigation data
+   */
+  getNavigationData: async (locationId) => {
+    const payload = {
+      action: 'getNavigationData',
+      location_id: locationId
+    };
+    
+    return axios.post(API_ENDPOINT, payload);
+  },
+  
+  /**
+   * Update user location for live navigation
+   */
+  updateUserLocation: async (userData) => {
+    const payload = {
+      action: 'updateUserLocation',
+      user_id: userData.userId,
+      current_location: userData.currentLocation,
+      destination: userData.destination,
+      timestamp: new Date().toISOString()
     };
     
     return axios.post(API_ENDPOINT, payload);
