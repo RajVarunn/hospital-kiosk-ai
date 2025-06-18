@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../services/supabaseClient';
 import patientVisitService from '../services/patientVisitService';
 import { Users, Activity, Clock, AlertCircle, CheckCircle, User, FileText, TrendingUp, RefreshCw, Phone, Heart, Thermometer, Calendar, MapPin, Pill } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -26,66 +27,49 @@ const StaffDashboard = () => {
   const fetchQueueData = async () => {
     setLoading(true);
     try {
-      // Fetch all data from DynamoDB
-      const queueData = await patientVisitService.getQueue() || [];
-      const patientData = await patientVisitService.getPatients() || [];
-      const visits = await fetchPatientVisits() || [];
-      const vitalsData = await patientVisitService.getVitals() || [];
-
-      // Guard against undefined queueData
-      if (!queueData || !Array.isArray(queueData)) {
-        console.error('Queue data is not an array:', queueData);
-        setQueueEntries([]);
-        setLoading(false);
-        return;
-      }
+      const { data: queueData } = await supabase
+        .from('queue')
+        .select('*')
+        .order('\"order\"', { ascending: true }); // Quote the column name here too
+      
+      const { data: patientData } = await supabase.from('patients').select('*');
+      const { data: vitalsData } = await supabase.from('vitals').select('*');
+      
+      // Fetch visits from DynamoDB
+      const visits = await fetchPatientVisits();
 
       const enrichedQueue = queueData.map(entry => {
-        // Guard against undefined entry
-        if (!entry || !entry.patient_id) return {};
+        const patient = patientData.find(p => p.id === entry.patient_id) || {};
+        const vitals = vitalsData.find(v => v.patient_id === entry.patient_id) || {};
         
-        const patient = Array.isArray(patientData) ? 
-          (patientData.find(p => p && p.user_id === entry.patient_id) || {}) : {};
-        const vitals = Array.isArray(vitalsData) ? 
-          (vitalsData.find(v => v && v.patient_id === entry.patient_id) || {}) : {};
-        
-        // Find matching visit data from DynamoDB, with fallback to empty object
-        const visit = Array.isArray(visits) ? 
-          (visits.find(v => v && v.patient_id === entry.patient_id) || {}) : {};
+        // Find matching visit data from DynamoDB
+        const visit = visits.find(v => v.patient_id === entry.patient_id) || {};
         
         return {
-          ...entry, // retains queue properties
-          id: entry.queue_id || entry.id, // ensure we have an id
-          patientId: patient.user_id, // store patient ID separately
-          vitals: vitals || {},
-          name: patient.name || 'Unknown',
-          age: patient.age || '',
-          department: patient.department || 'General',
-          appointment_time: patient.appointment_time || '',
-          nric: patient.nric || '',
-          phone: patient.phone || '',
-          medical_history: patient.medical_history || [],
-          current_medications: patient.current_medications || visit.current_medication || [],
-          chief_complaint: patient.chief_complaint || visit.user_input || '',
-          ai_summary: patient.ai_summary || '',
-          ai_pre_diagnosis: visit.ai_pre_diagnosis || null,
-          symptoms: visit.symptoms || [],
-          visit_data: visit || {}
+          ...entry, // retains queue.id
+          patientId: patient.id, // store patient ID separately to avoid conflict
+          vitals,
+          name: patient.name,
+          age: patient.age,
+          department: patient.department,
+          appointment_time: patient.appointment_time,
+          nric: patient.nric,
+          phone: patient.phone,
+          medical_history: patient.medical_history,
+          current_medications: patient.current_medications || visit.current_medication,
+          chief_complaint: patient.chief_complaint || visit.user_input,
+          ai_summary: patient.ai_summary,
+          ai_pre_diagnosis: visit.ai_pre_diagnosis,
+          symptoms: visit.symptoms,
+          visit_data: visit
         };
-      }).filter(entry => entry && entry.id); // Filter out any empty entries
+      });
 
       setQueueEntries(enrichedQueue);
 
       // Set first patient as selected if none selected
       if (!selectedPatient && enrichedQueue.length > 0) {
         setSelectedPatient(enrichedQueue[0]);
-        
-        // Auto-generate pre-diagnosis if not already available
-        const firstPatient = enrichedQueue[0];
-        if (firstPatient && firstPatient.patientId && !firstPatient.ai_pre_diagnosis) {
-          console.log('Auto-generating pre-diagnosis for first patient:', firstPatient.patientId);
-          requestPreDiagnosis(firstPatient.patientId);
-        }
       }
 
       const waiting = enrichedQueue.filter(q => q.status === 'waiting');
@@ -119,21 +103,17 @@ const StaffDashboard = () => {
     try {
       setLoading(true);
       
-      // Request pre-diagnosis using Bedrock
-      console.log('Requesting pre-diagnosis with Bedrock for patient:', patientId);
-      const result = await patientVisitService.requestPreDiagnosis(patientId);
+      // Request pre-diagnosis from API
+      await patientVisitService.requestPreDiagnosis(patientId);
       
-      if (result.success) {
-        // Refresh data to get updated pre-diagnosis
-        await fetchQueueData();
-        console.log('Pre-diagnosis generated successfully:', result.data);
-      } else {
-        console.error('Failed to generate pre-diagnosis:', result.message);
-        alert(`Failed to generate pre-diagnosis: ${result.message}`);
-      }
+      // Refresh data to get updated pre-diagnosis
+      await fetchQueueData();
+      
+      // Show success message
+      alert('Pre-diagnosis generated successfully');
     } catch (error) {
       console.error('Error generating pre-diagnosis:', error);
-      alert(`Failed to generate pre-diagnosis: ${error.message || 'Unknown error'}`);
+      alert(`Failed to generate pre-diagnosis: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -155,27 +135,73 @@ const StaffDashboard = () => {
     setQueueEntries(reordered);
 
     try {
-      // Update queue order in DynamoDB
+      // First, verify all IDs exist in the database
+      console.log('Verifying all IDs exist in database...');
+      const idsToCheck = reordered.map(entry => entry.id);
+      
+      const { data: existingEntries, error: checkError } = await supabase
+        .from('queue')
+        .select('id, order, name')
+        .in('id', idsToCheck);
+      
+      if (checkError) {
+        console.error('Error checking existing entries:', checkError);
+        throw checkError;
+      }
+      
+      console.log('Existing entries in database:', existingEntries);
+      console.log('IDs we want to update:', idsToCheck);
+      
+      const missingIds = idsToCheck.filter(id => !existingEntries.find(entry => entry.id === id));
+      if (missingIds.length > 0) {
+        console.error('❌ Missing IDs in database:', missingIds);
+        throw new Error(`Some entries don't exist in database: ${missingIds.join(', ')}`);
+      }
+
+      // Now proceed with updates, but only for entries that exist
+      console.log('All IDs verified, proceeding with updates...');
+      
       for (let i = 0; i < reordered.length; i++) {
         const entry = reordered[i];
         
         console.log(`\n--- Updating entry ${i + 1}/${reordered.length} ---`);
-        console.log(`ID: ${entry.id || entry.queue_id}`);
+        console.log(`ID: ${entry.id}`);
         console.log(`Name: ${entry.name || 'Unknown'}`);
         console.log(`Setting order to: ${i}`);
         
-        try {
-          // Update queue entry order
-          await patientVisitService.updateQueue({
-            queue_id: entry.id || entry.queue_id,
-            patient_id: entry.patient_id,
-            order: i,
-            status: entry.status
-          });
+        // Try different approaches for the update
+        const { data, error, status, statusText } = await supabase
+          .from('queue')
+          .update({ order: i })
+          .eq('id', entry.id)
+          .select('id, order, name');
+        
+        console.log(`Response status: ${status} ${statusText}`);
+        console.log('Response data:', data);
+        console.log('Response error:', error);
+        
+        if (error) {
+          console.error(`❌ Error updating entry ${entry.id}:`, error);
+          throw error;
+        }
+        
+        if (!data || data.length === 0) {
+          // Try alternative update approach
+          console.log('Trying alternative update approach...');
           
-          console.log(`✅ Successfully updated queue entry`);
-        } catch (updateError) {
-          console.error(`❌ Error updating entry:`, updateError);
+          const { data: altData, error: altError } = await supabase
+            .from('queue')
+            .update({ "order": i }) // Try with quotes
+            .eq('id', entry.id);
+          
+          if (altError) {
+            console.error(`❌ Alternative update also failed:`, altError);
+            throw altError;
+          }
+          
+          console.log('Alternative update response:', altData);
+        } else {
+          console.log(`✅ Successfully updated:`, data[0]);
         }
         
         // Small delay to avoid overwhelming the database
@@ -194,31 +220,19 @@ const StaffDashboard = () => {
   };
 
   const markAsReady = async (queueId) => {
-    try {
-      await patientVisitService.updateQueue({
-        queue_id: queueId,
-        status: 'ready'
-      });
-      
+    const { error } = await supabase.from('queue').update({ status: 'ready' }).eq('id', queueId);
+    if (!error) {
       await fetchQueueData();
       // Re-select the updated patient object after fetch
       const updated = queueEntries.find(entry => entry.id === queueId);
       if (updated) setSelectedPatient(updated);
-    } catch (error) {
-      console.error('Error marking patient as ready:', error);
     }
   };
 
   const callPatient = async (queueId) => {
-    try {
-      await patientVisitService.updateQueue({
-        queue_id: queueId,
-        status: 'serving'
-      });
-      
+    const { error } = await supabase.from('queue').update({ status: 'serving' }).eq('id', queueId);
+    if (!error) {
       fetchQueueData();
-    } catch (error) {
-      console.error('Error calling patient:', error);
     }
   };
 
@@ -356,14 +370,7 @@ const StaffDashboard = () => {
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                                onClick={() => {
-                                  setSelectedPatient(entry);
-                                  // Auto-generate pre-diagnosis if not already available
-                                  if (entry && entry.patientId && !entry.ai_pre_diagnosis) {
-                                    console.log('Auto-generating pre-diagnosis for selected patient:', entry.patientId);
-                                    requestPreDiagnosis(entry.patientId);
-                                  }
-                                }}
+                                onClick={() => setSelectedPatient(entry)}
                                 className={`p-4 cursor-pointer hover:bg-gray-50 ${getQueueItemBorder(entry.priority, selectedPatient?.id === entry.id)} ${selectedPatient?.id === entry.id ? 'bg-blue-50' : ''}`}
                               >
                                 <div className="flex justify-between items-start mb-2">

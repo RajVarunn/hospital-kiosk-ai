@@ -26,3 +26,17 @@
   object-fit: contain;
   background-color: #f0f9ff;
 }
+
+.floor-selector button {
+  padding: 8px 16px; /* Ensure buttons are uniformly sized */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floor-selector {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px; /* Add some space between buttons */
+}

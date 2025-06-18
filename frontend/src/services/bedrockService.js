@@ -1,109 +1,166 @@
+/**
+ * Service for interacting with Amazon Bedrock
+ */
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
-// Initialize the Bedrock client
-const initializeClient = () => {
-  const region = 'us-west-2';
-  const accessKeyId = 'AKIA2Q5NVXLYLZ6MPR7K';
-  const secretAccessKey = '8Ez2JhHOHsSOcJzk9crqLD0bBrkdVIP4NetEtuCZ';
+// AWS credentials - replace with your own or use environment variables
+const AWS_CREDENTIALS = {
+  region: 'us-west-2',
+  accessKeyId: process.env.REACT_APP_AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.REACT_APP_AWS_SECRET_ACCESS_KEY
+};
 
-  if (!region || !accessKeyId || !secretAccessKey) {
+// Initialize Bedrock client
+let bedrockClient = null;
+
+const initializeBedrockClient = () => {
+  if (bedrockClient) return bedrockClient;
+  
+  // Get environment variables
+  const region = AWS_CREDENTIALS.region;
+  const accessKeyId = AWS_CREDENTIALS.accessKeyId;
+  const secretAccessKey = AWS_CREDENTIALS.secretAccessKey;
+  
+  // Check if credentials are available
+  if (!accessKeyId || !secretAccessKey) {
     console.warn('AWS credentials not found in environment variables');
     return null;
   }
-
-  return new BedrockRuntimeClient({
+  
+  bedrockClient = new BedrockRuntimeClient({
     region,
     credentials: { accessKeyId, secretAccessKey }
   });
+  
+  return bedrockClient;
 };
 
 const bedrockService = {
   /**
-   * Invoke Bedrock model with a prompt
+   * Generate pre-diagnosis using Bedrock
+   * @param {Object} patientData - Patient data including symptoms and vitals
+   * @returns {Object} - Pre-diagnosis data
    */
-  invokeModel: async (prompt, options = {}) => {
+  generatePreDiagnosis: async (patientData) => {
     try {
-      // First try using our Lambda function via dynamoService
-      const dynamoService = (await import('./dynamoService')).default;
-      console.log('Using dynamoService.bedrockTest for Bedrock invocation');
-      
-      try {
-        // Include vitals in the request if provided
-        const result = await dynamoService.bedrockTest(prompt, {
-          systolic: options.systolic,
-          diastolic: options.diastolic,
-          heart_rate: options.heart_rate
-        });
-        console.log('dynamoService.bedrockTest result:', result);
-        return result;
-      } catch (dynamoError) {
-        console.warn('dynamoService.bedrockTest failed, falling back to direct Bedrock API:', dynamoError);
-        // Fall back to direct Bedrock API call
+      const client = initializeBedrockClient();
+      if (!client) {
+        throw new Error('Failed to initialize Bedrock client');
       }
-    } catch (importError) {
-      console.warn('Failed to import dynamoService, falling back to direct Bedrock API:', importError);
-    }
-    
-    // Direct Bedrock API call as fallback
-    const client = initializeClient();
-    
-    if (!client) {
-      throw new Error('Bedrock client could not be initialized');
-    }
-
-    const modelId = 'us.deepseek.r1-v1:0';  // Updated model ID
-    const temperature = options.temperature || 0.5;
-    const topP = options.topP || 0.9;
-
-    // Corrected request body format for the DeepSeek model
-    const requestBody = {
-      prompt: prompt,
-      temperature: temperature,
-      top_p: topP
-    };
-
-    const command = new InvokeModelCommand({
-      modelId,
-      body: JSON.stringify(requestBody),
-      contentType: 'application/json',
-      accept: 'application/json'
-    });
-
-    try {
+      
+      // Format patient data for the prompt
+      const { 
+        user_input, 
+        height, 
+        weight, 
+        systolic, 
+        diastolic, 
+        heart_rate,
+        medical_history = []
+      } = patientData;
+      
+      // Create prompt for Bedrock
+      const prompt = `
+        You are a medical AI assistant. A patient has reported the following:
+        
+        Chief complaint: "${user_input || 'No complaint reported'}"
+        
+        Vital signs:
+        Height: ${height || 'N/A'} cm
+        Weight: ${weight || 'N/A'} kg
+        Blood Pressure: ${systolic || 'N/A'}/${diastolic || 'N/A'} mmHg
+        Heart Rate: ${heart_rate || 'N/A'} bpm
+        
+        Medical history: ${medical_history.join(', ') || 'None reported'}
+        
+        Please provide a pre-diagnosis in the following JSON format:
+        {
+          "summary": "Brief summary of the situation",
+          "possibleConditions": ["Condition 1", "Condition 2", "Condition 3"],
+          "recommendedTests": ["Test 1", "Test 2", "Test 3"],
+          "followUpQuestions": ["Question 1?", "Question 2?", "Question 3?"],
+          "redFlags": ["Red flag 1", "Red flag 2"]
+        }
+      `;
+      
+      // Call Bedrock
+      const command = new InvokeModelCommand({
+        modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+        contentType: 'application/json',
+        accept: 'application/json',
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 1000,
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.7
+        })
+      });
+      
       const response = await client.send(command);
-      const bodyString = await new Response(response.body).text();
-      const parsedResponse = JSON.parse(bodyString);
-
-      return parsedResponse.content || parsedResponse;
-    } catch (err) {
-      console.error('Error invoking Bedrock model:', err);
-      throw err;
+      
+      // Parse Bedrock response
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+      const aiResponse = responseBody?.content?.[0]?.text || '';
+      
+      // Extract JSON from response
+      let preDiagnosis;
+      try {
+        // Find JSON in the response
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          preDiagnosis = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found in response");
+        }
+      } catch (e) {
+        console.error("Error parsing AI response:", e);
+        preDiagnosis = {
+          summary: "Could not generate structured pre-diagnosis",
+          possibleConditions: [],
+          recommendedTests: [],
+          followUpQuestions: [],
+          redFlags: []
+        };
+      }
+      
+      return {
+        success: true,
+        message: "Pre-diagnosis generated successfully",
+        data: preDiagnosis
+      };
+    } catch (error) {
+      console.error('Error generating pre-diagnosis with Bedrock:', error);
+      return {
+        success: false,
+        message: `Failed to generate pre-diagnosis: ${error.message}`,
+        data: null
+      };
     }
   },
-
+  
   /**
-   * Generate navigation instructions using Bedrock
+   * For mock data - generate a pre-diagnosis without calling Bedrock
    */
-  generateNavigationInstructions: async (start, destination) => {
-    const prompt = `Generate step-by-step navigation instructions from ${start} to ${destination} in a hospital. Keep the instructions clear, concise, and easy to follow.`;
+  generateMockPreDiagnosis: (patientData) => {
+    const { user_input, medical_history = [] } = patientData;
     
-    try {
-      const response = await bedrockService.invokeModel(prompt);
-
-      // Try to parse the response as JSON if it's a string
-      if (typeof response === 'string') {
-        try {
-          return response.split('\n').filter(line => line.trim());
-        } catch (e) {
-          return [response];
-        }
+    // Create a simple mock pre-diagnosis based on the input
+    return {
+      success: true,
+      message: "Mock pre-diagnosis generated successfully",
+      data: {
+        summary: `Patient reported: "${user_input || 'No complaint'}". Medical history includes ${medical_history.join(', ') || 'no reported conditions'}.`,
+        possibleConditions: ["Common Cold", "Seasonal Allergies", "Stress"],
+        recommendedTests: ["Basic Blood Panel", "Vital Signs Check"],
+        followUpQuestions: ["How long have you been experiencing these symptoms?", "Any recent changes in diet or routine?"],
+        redFlags: []
       }
-
-      return response;
-    } catch (err) {
-      console.error('Error generating navigation instructions:', err);
-      return ['Head towards your destination', 'Follow the signs', 'You will arrive at your destination'];
-    }
+    };
   }
 };
 

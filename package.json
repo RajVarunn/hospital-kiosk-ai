@@ -5,7 +5,9 @@
         "dev": "concurrently \"npm run server\" \"npm run client\"",
         "server": "cd backend && npm run dev",
         "client": "cd frontend && npm start",
-        "install-deps": "cd backend && npm install && cd ../frontend && npm install"
+        "install-deps": "cd backend && npm install && cd ../frontend && npm install",
+        "kill-port": "kill-port.bat",
+        "restart": "npm run kill-port && npm run dev"
     },
     "devDependencies": {
         "concurrently": "^7.6.0"

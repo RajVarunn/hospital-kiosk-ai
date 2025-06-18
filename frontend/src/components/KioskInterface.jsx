@@ -3,8 +3,9 @@ import { supabase } from '../services/supabaseClient';
 import { patientAPI } from '../services/api';
 import PatientForm from './PatientForm';
 import VitalsCollection from './VitalsCollection';
+import KioskNavigation from './KioskNavigation';
 import QRCode from 'react-qr-code';
-import { User, Stethoscope, QrCode, CheckCircle } from 'lucide-react';
+import { User, Stethoscope, QrCode, CheckCircle, Map } from 'lucide-react';
 
 const KioskInterface = () => {
   const [currentStep, setCurrentStep] = useState('welcome');
@@ -16,6 +17,7 @@ const KioskInterface = () => {
     welcome: 'Welcome',
     register: 'Registration',
     vitals: 'Vitals Collection',
+    navigation: 'Navigation',
     complete: 'Complete'
   };
 
@@ -71,7 +73,7 @@ const KioskInterface = () => {
         order: nextOrder
       });
       
-      setCurrentStep('complete');
+      setCurrentStep('navigation');
     } catch (err) {
       setError('Failed to save vitals. Please try again.');
       console.error('Vitals error:', err);
@@ -182,6 +184,26 @@ const KioskInterface = () => {
           {currentStep === 'vitals' && patient && (
             <VitalsCollection patient={patient} onComplete={handleVitalsComplete} loading={loading} />
           )}
+          {currentStep === 'navigation' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+                <Map className="w-6 h-6 mr-2 text-medical-blue" />
+                Find Your Way
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Use the map below to navigate to your destination in the hospital.
+              </p>
+              <KioskNavigation />
+              <div className="mt-6 text-center">
+                <button
+                  onClick={() => setCurrentStep('complete')}
+                  className="inline-flex items-center px-6 py-2 border border-transparent text-base font-medium rounded-md text-white bg-medical-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                  Continue to Completion
+                </button>
+              </div>
+            </div>
+          )}
           {currentStep === 'complete' && patient && (
             <CompletionScreen patient={patient} onReset={resetKiosk} />
           )}
@@ -210,6 +232,11 @@ const WelcomeScreen = ({ onStart }) => (
         <QrCode className="h-8 w-8 text-medical-blue mx-auto mb-2" />
         <h3 className="font-semibold text-gray-900">Mobile Access</h3>
         <p className="text-sm text-gray-600">Continue on your phone</p>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <Map className="h-8 w-8 text-medical-blue mx-auto mb-2" />
+        <h3 className="font-semibold text-gray-900">Hospital Navigation</h3>
+        <p className="text-sm text-gray-600">Find your way around</p>
       </div>
     </div>
     <button
