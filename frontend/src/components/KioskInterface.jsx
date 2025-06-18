@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { patientAPI } from '../services/api';
-import AIAvatar from './AvatarViewer';
 import PatientForm from './PatientForm';
 import VitalsCollection from './VitalsCollection';
 import QRCode from 'react-qr-code';

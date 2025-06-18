@@ -1,59 +1,74 @@
-// src/services/patientAPI.js
-import { supabase } from './supabaseClient';
+// src/services/api.js
+import dynamoService from './dynamoService';
 
 export const patientAPI = {
   register: async (patientData) => {
-    const { data, error } = await supabase
-      .from('patients')
-      .insert([patientData])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { data: { patient: data } };
+    try {
+      const response = await dynamoService.savePatient({
+        user_id: patientData.id || patientData.nric,
+        name: patientData.name,
+        nric: patientData.nric,
+        dob: patientData.dob,
+        age: patientData.age,
+        gender: patientData.gender || '',
+        preferred_language: patientData.preferred_language || '',
+        medical_history: patientData.medical_history || []
+      });
+      
+      return { 
+        data: { 
+          patient: {
+            id: patientData.id || patientData.nric,
+            ...patientData
+          } 
+        } 
+      };
+    } catch (error) {
+      throw error;
+    }
   },
 
   updateVitals: async (patientId, vitalsData) => {
-    const { error } = await supabase
-      .from('patients')
-      .update({ ...vitalsData })
-      .eq('id', patientId);
-
-    if (error) throw error;
-    return { success: true };
+    try {
+      await dynamoService.saveVisit({
+        patient_id: patientId,
+        systolic: vitalsData.systolic,
+        diastolic: vitalsData.diastolic,
+        heart_rate: vitalsData.heartRate
+      });
+      
+      return { success: true };
+    } catch (error) {
+      throw error;
+    }
   },
 
   getPatient: async (id) => {
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) throw error;
-    return data;
+    // This would require a GET endpoint in your Lambda function
+    // For now, we'll return a mock response
+    return {
+      id: id,
+      name: 'Patient Data',
+      // Add other fields as needed
+    };
   },
 
   addToQueue: async (entryData) => {
-    // Get current max order
-    const { data: existingQueue, error: fetchError } = await supabase
-      .from('queue')
-      .select('order')
-      .order('order', { ascending: false })
-      .limit(1);
-
-    if (fetchError) throw fetchError;
-
-    const nextOrder = existingQueue?.[0]?.order + 1 || 0;
-
-    const { data, error } = await supabase.from('queue').insert([
-      {
-        ...entryData,
-        order: nextOrder, // ✅ Include calculated order
-      },
-    ]);
-
-    if (error) throw error;
-    return data;
+    try {
+      // Get current timestamp
+      const timestamp = new Date().toISOString();
+      
+      const response = await dynamoService.updateQueue({
+        patient_id: entryData.patient_id,
+        status: 'waiting',
+        priority: entryData.priority || 'low',
+        created_at_timestamp: timestamp,
+        order: entryData.order || 0
+      });
+      
+      return [{ id: entryData.patient_id }];
+    } catch (error) {
+      throw error;
+    }
   }
 };

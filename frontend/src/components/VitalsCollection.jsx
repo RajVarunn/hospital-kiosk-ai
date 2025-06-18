@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, Heart } from 'lucide-react';
-import { supabase } from '../services/supabaseClient'; // Make sure this file exports a working client
+import dynamoService from '../services/dynamoService';
 
 const VitalsCollection = ({ patient, onComplete }) => {
   const [vitals, setVitals] = useState({
@@ -49,23 +49,22 @@ const VitalsCollection = ({ patient, onComplete }) => {
     setLoading(true);
     const { systolic, diastolic, heartRate } = vitals;
 
-    const { error } = await supabase
-      .from('vitals')
-      .insert({
+    try {
+      // Save to DynamoDB via Lambda
+      await dynamoService.saveVisit({
         patient_id: patient.id,
-        bp_systolic: parseInt(systolic),
-        bp_diastolic: parseInt(diastolic),
+        systolic: parseInt(systolic),
+        diastolic: parseInt(diastolic),
         heart_rate: parseInt(heartRate)
       });
-
-    setLoading(false);
-
-    if (error) {
-      console.error('Insert failed:', error);
-      alert('Failed to save vitals');
-    } else {
+      
       setSuccess(true);
       if (onComplete) onComplete();
+    } catch (error) {
+      console.error('Save failed:', error);
+      alert('Failed to save vitals');
+    } finally {
+      setLoading(false);
     }
   };
 
