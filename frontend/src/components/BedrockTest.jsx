@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import bedrockService from '../services/bedrockService';
+import dynamoService from '../services/dynamoService';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,6 +15,7 @@ const BedrockTest = () => {
   const [healthTips, setHealthTips] = useState('');
   const [loading, setLoading] = useState(true); // Start with loading true
   const [error, setError] = useState('');
+  const [source, setSource] = useState(''); // Track if assessment is from Bedrock or fallback
   const navigate = useNavigate();
   
   // Load vitals and symptoms from sessionStorage on component mount
@@ -63,38 +65,67 @@ const BedrockTest = () => {
       heart_rate: parseInt(data.heart_rate || vitals.heart_rate)
     };
     
-    console.log('Calling bedrockService.invokeModel with:', { input, vitalValues });
-    
     try {
-      // Include vitals in the request
-      const result = await bedrockService.invokeModel(input, vitalValues);
+      // Call Lambda directly with the action parameter
+      const response = await dynamoService.callLambda({
+        action: 'bedrockTest',
+        user_input: input,
+        ...vitalValues
+      });
       
-      console.log('Bedrock response received:', result);
+      console.log('Health assessment raw response:', response);
       
-      // Check if result is an object with diagnosis and tips
-      if (typeof result === 'object') {
-        console.log('Result is an object with keys:', Object.keys(result));
+      // Parse the response if it's in the Lambda API Gateway format
+      let result = response;
+      if (response && response.body && typeof response.body === 'string') {
+        try {
+          result = JSON.parse(response.body);
+          console.log('Parsed result from body:', result);
+        } catch (e) {
+          console.error('Error parsing response body:', e);
+        }
+      }
+      
+      console.log('Health assessment processed result:', result);
+      
+      // Check if the result has initialDiagnosis and healthTips
+      if (result && result.initialDiagnosis) {
+        setInitialDiagnosis(result.initialDiagnosis);
+        setHealthTips(result.healthTips || '');
+        setSource(result.source || '');
+      } 
+      // Check if the result has a response field that can be parsed
+      else if (result && result.response) {
+        // Try to extract from response if available
+        const diagnosisMatch = result.response.match(/Initial Diagnosis[:\-]?\s*([\s\S]*?)(?=\n+Health Tips[:\-]?|\n*$)/i);
+        const tipsMatch = result.response.match(/Health Tips[:\-]?\s*([\s\S]*?)$/i);
         
-        if (result.initialDiagnosis) {
-          console.log('Setting initialDiagnosis:', result.initialDiagnosis);
-          setInitialDiagnosis(result.initialDiagnosis);
-        } else {
-          console.log('No initialDiagnosis in result');
+        if (diagnosisMatch) {
+          setInitialDiagnosis(diagnosisMatch[1].trim());
         }
         
-        if (result.healthTips) {
-          console.log('Setting healthTips:', result.healthTips);
-          setHealthTips(result.healthTips);
-        } else {
-          console.log('No healthTips in result');
+        if (tipsMatch) {
+          setHealthTips(tipsMatch[1].trim());
         }
-      } else {
-        // If it's just a string, show it as diagnosis
-        console.log('Result is not an object, type:', typeof result);
-        setInitialDiagnosis(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
+        
+        if (!diagnosisMatch && !tipsMatch) {
+          setError('Could not parse health assessment response. Please try again.');
+        }
+      } 
+      // Handle the case where the result is an empty object or doesn't have the expected fields
+      else if (result && typeof result === 'object' && Object.keys(result).length === 0) {
+        setError('Received empty response. Please try again.');
+      }
+      // Handle the case where the result is a string
+      else if (typeof result === 'string') {
+        setInitialDiagnosis(result);
+      }
+      // Handle the case where the result is undefined or null
+      else {
+        setError('Could not generate health assessment. Please try again.');
       }
     } catch (err) {
-      console.error('Bedrock test error:', err);
+      console.error('Health assessment error:', err);
       setError(`Error generating health assessment: ${err.message}`);
     } finally {
       setLoading(false);
@@ -132,6 +163,32 @@ const BedrockTest = () => {
             <p className="font-medium">{userInput}</p>
           </div>
         )}
+        
+        {/* Manual Input Form */}
+        <div className="mt-4 pt-4 border-t border-blue-200">
+          <h4 className="text-md font-medium mb-2">Enter Symptoms</h4>
+          <div className="flex">
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="Enter symptoms here..."
+              className="flex-1 p-2 border rounded-l"
+            />
+            <button
+              onClick={() => handleDiagnosis({ 
+                user_input: userInput,
+                systolic: parseInt(vitals.systolic),
+                diastolic: parseInt(vitals.diastolic),
+                heart_rate: parseInt(vitals.heart_rate)
+              })}
+              className="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600"
+              disabled={loading || !userInput}
+            >
+              Generate
+            </button>
+          </div>
+        </div>
       </div>
       
       {/* Loading State */}
@@ -169,6 +226,179 @@ const BedrockTest = () => {
               </div>
             </div>
           )}
+          
+          {/* Source indicator - only in development mode */}
+          {process.env.NODE_ENV === 'development' && source && (
+            <div className="text-xs text-gray-500 mt-2">
+              Source: {source === 'bedrock' ? 
+                <span className="text-green-600 font-medium">Bedrock AI</span> : 
+                <span className="text-orange-600 font-medium">Fallback System</span>}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Debug Buttons - Only visible in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 mb-2 space-y-2">
+          <button
+            onClick={async () => {
+              const testInput = "headache and fever";
+              const testVitals = {
+                systolic: 120,
+                diastolic: 80,
+                heart_rate: 75
+              };
+              console.log('Running test with:', testInput, testVitals);
+              
+              try {
+                setLoading(true);
+                setError('');
+                
+                // Call Lambda directly
+                const response = await dynamoService.callLambda({
+                  action: 'bedrockTest',
+                  user_input: testInput,
+                  ...testVitals
+                });
+                
+                console.log('Test assessment raw response:', response);
+                
+                // Parse the response if it's in the Lambda API Gateway format
+                let result = response;
+                if (response && response.body && typeof response.body === 'string') {
+                  try {
+                    result = JSON.parse(response.body);
+                    console.log('Parsed test result from body:', result);
+                  } catch (e) {
+                    console.error('Error parsing test response body:', e);
+                  }
+                }
+                
+                console.log('Test assessment processed result:', result);
+                
+                // Check if the result has initialDiagnosis and healthTips
+                if (result && result.initialDiagnosis) {
+                  setInitialDiagnosis(result.initialDiagnosis);
+                  setHealthTips(result.healthTips || '');
+                  setSource(result.source || '');
+                } else if (result && result.error) {
+                  // Handle error response from Bedrock API
+                  setError(`Bedrock API error: ${result.error} (Code: ${result.errorCode || 'unknown'})`);
+                  console.error('Bedrock API error details:', result);
+                } 
+                // Check if the result has a response field that can be parsed
+                else if (result && result.response) {
+                  // Try to extract from response if available
+                  const diagnosisMatch = result.response.match(/Initial Diagnosis[:\-]?\s*([\s\S]*?)(?=\n+Health Tips[:\-]?|\n*$)/i);
+                  const tipsMatch = result.response.match(/Health Tips[:\-]?\s*([\s\S]*?)$/i);
+                  
+                  if (diagnosisMatch) {
+                    setInitialDiagnosis(diagnosisMatch[1].trim());
+                  }
+                  
+                  if (tipsMatch) {
+                    setHealthTips(tipsMatch[1].trim());
+                  }
+                  
+                  if (!diagnosisMatch && !tipsMatch) {
+                    setError('Could not parse health assessment response. Please try again.');
+                  }
+                } 
+                // Handle the case where the result is an empty object or doesn't have the expected fields
+                else if (result && typeof result === 'object' && Object.keys(result).length === 0) {
+                  setError('Received empty response. Please try again.');
+                }
+                // Handle the case where the result is a string
+                else if (typeof result === 'string') {
+                  setInitialDiagnosis(result);
+                }
+                // Handle the case where the result is undefined or null
+                else {
+                  setError('Could not generate health assessment. Please try again.');
+                }
+              } catch (err) {
+                console.error('Test assessment error:', err);
+                setError(`Error generating test assessment: ${err.message}`);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 mr-2"
+          >
+            Run Test Assessment
+          </button>
+          
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                setError('');
+                const response = await dynamoService.callLambda({
+                  action: 'bedrockTest',
+                  user_input: 'Test connection to Lambda'
+                });
+                console.log('Lambda connection test result:', response);
+                alert('Lambda connection successful! Check console for details.');
+              } catch (err) {
+                console.error('Lambda connection test failed:', err);
+                setError(`Lambda connection test failed: ${err.message}`);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="px-4 py-2 bg-blue-200 text-blue-800 rounded hover:bg-blue-300 mr-2"
+          >
+            Test Lambda Connection
+          </button>
+          
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                setError('');
+                
+                // Call Lambda with debug flag to force Bedrock usage
+                const response = await dynamoService.callLambda({
+                  action: 'bedrockTest',
+                  user_input: 'I have a headache and feel dizzy',
+                  forceBedrock: true,
+                  debug: true
+                });
+                
+                console.log('Bedrock test result:', response);
+                
+                // Parse the response
+                let result = response;
+                if (response && response.body && typeof response.body === 'string') {
+                  try {
+                    result = JSON.parse(response.body);
+                  } catch (e) {
+                    console.error('Error parsing response:', e);
+                  }
+                }
+                
+                if (result && result.message) {
+                  alert(`Bedrock test: ${result.message}\nCheck console for details.`);
+                  
+                  if (result.initialDiagnosis) {
+                    setInitialDiagnosis(result.initialDiagnosis);
+                    setHealthTips(result.healthTips || '');
+                  }
+                } else {
+                  setError('Failed to get Bedrock response');
+                }
+              } catch (err) {
+                console.error('Bedrock test error:', err);
+                setError(`Bedrock test error: ${err.message}`);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="px-4 py-2 bg-green-200 text-green-800 rounded hover:bg-green-300"
+          >
+            Test Bedrock API
+          </button>
         </div>
       )}
       

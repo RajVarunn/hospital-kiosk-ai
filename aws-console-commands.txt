@@ -1,0 +1,36 @@
+# AWS Console Commands to Grant Bedrock Permissions
+
+# 1. Create the IAM policy
+Go to IAM > Policies > Create policy
+Choose JSON and paste this policy:
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+
+Name it "BedrockInvokePolicy" and create it.
+
+# 2. Find your Lambda function's role
+Go to Lambda > Functions > [your-function-name] > Configuration > Permissions
+Note the Role name (e.g., "hospital-kiosk-lambda-role")
+
+# 3. Attach the policy to the role
+Go to IAM > Roles > [your-lambda-role]
+Click "Add permissions" > "Attach policies"
+Search for "BedrockInvokePolicy" and select it
+Click "Attach policies"
+
+# 4. Verify the Lambda has Bedrock model access
+Go to Amazon Bedrock > Model access
+Ensure Claude models are enabled for your account
+If not, request access and wait for approval

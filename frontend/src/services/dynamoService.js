@@ -288,6 +288,47 @@ const dynamoService = {
       console.error('Error calling Bedrock:', error.response ? error.response.data : error.message);
       throw error;
     }
+  },
+  
+  /**
+   * Generate health assessment using Bedrock
+   */
+  generateHealthAssessment: async (data) => {
+    debugLog('dynamoService.generateHealthAssessment called with', data);
+    
+    const payload = {
+      action: 'generateHealthAssessment',
+      user_input: data.symptoms || data.user_input,
+      systolic: data.systolic || 120,
+      diastolic: data.diastolic || 80,
+      heart_rate: data.heart_rate || 75,
+      patient_id: data.patient_id
+    };
+    
+    try {
+      const response = await axios.post(API_ENDPOINT, payload);
+      debugLog('Health assessment response', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error generating health assessment:', error.response ? error.response.data : error.message);
+      throw error;
+    }
+  },
+  
+  /**
+   * Generic method to call Lambda with any payload
+   */
+  callLambda: async (payload) => {
+    debugLog('dynamoService.callLambda called with', payload);
+    
+    try {
+      const response = await axios.post(API_ENDPOINT, payload);
+      debugLog('Lambda response', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error calling Lambda:', error.response ? error.response.data : error.message);
+      throw error;
+    }
   }
 };
 
