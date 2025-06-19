@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import navigationService from '../services/navigationService';
 import { MapPin, Navigation, Plus, Minus, Upload, Map } from 'lucide-react';
 
-const FloorPlanNavigation = () => {
+const FloorPlanNavigation = () => { 
   const [floorPlans, setFloorPlans] = useState([]);
   const [selectedFloorPlan, setSelectedFloorPlan] = useState(null);
   const [navigationPoints, setNavigationPoints] = useState([]);

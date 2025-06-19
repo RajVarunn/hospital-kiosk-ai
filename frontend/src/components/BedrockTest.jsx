@@ -361,9 +361,12 @@ const BedrockTest = () => {
                 // Call Lambda with debug flag to force Bedrock usage
                 const response = await dynamoService.callLambda({
                   action: 'bedrockTest',
-                  user_input: 'I have a headache and feel dizzy',
+                  user_input: userInput || 'I have a headache and feel dizzy', // Use user input if available
                   forceBedrock: true,
-                  debug: true
+                  debug: true,
+                  systolic: parseInt(vitals.systolic),
+                  diastolic: parseInt(vitals.diastolic),
+                  heart_rate: parseInt(vitals.heart_rate)
                 });
                 
                 console.log('Bedrock test result:', response);
@@ -384,6 +387,7 @@ const BedrockTest = () => {
                   if (result.initialDiagnosis) {
                     setInitialDiagnosis(result.initialDiagnosis);
                     setHealthTips(result.healthTips || '');
+                    setSource(result.source || '');
                   }
                 } else {
                   setError('Failed to get Bedrock response');

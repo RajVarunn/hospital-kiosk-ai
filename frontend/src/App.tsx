@@ -6,6 +6,7 @@ import KioskInterface from './components/KioskInterface';
 import MobileInterface from './components/MobileInterface';
 import BedrockTest from './components/BedrockTest';
 import NavigationPage from './components/NavigationPage';
+import DirectBedrockTest from './components/DirectBedrockTest';
 import useEnv from './hooks/useEnv';
 
 function App() {
@@ -39,6 +40,9 @@ function App() {
             <Link to="/bedrock-test" className="text-blue-600 hover:text-blue-800">
               Bedrock Test
             </Link>
+            <Link to="/direct-bedrock" className="text-blue-600 hover:text-blue-800">
+              Direct Bedrock
+            </Link>
           </div>
         </nav>
 
@@ -49,6 +53,7 @@ function App() {
           <Route path="/dashboard" element={<StaffDashboard />} />
           <Route path="/navigation" element={<NavigationPage />} />
           <Route path="/bedrock-test" element={<BedrockTest />} />
+          <Route path="/direct-bedrock" element={<DirectBedrockTest />} />
         </Routes>
       </div>
     </Router>

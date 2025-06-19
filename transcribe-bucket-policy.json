@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TranscribeAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "transcribe.amazonaws.com"
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::elera-audio",
+        "arn:aws:s3:::elera-audio/*"
+      ]
+    }
+  ]
+}
