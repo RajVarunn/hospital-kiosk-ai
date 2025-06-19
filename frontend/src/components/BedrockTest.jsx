@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import bedrockService from '../services/bedrockService';
 import dynamoService from '../services/dynamoService';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import OpenAI from 'openai';
 
 const BedrockTest = () => {
   const [userInput, setUserInput] = useState('');
@@ -18,6 +18,91 @@ const BedrockTest = () => {
   const [source, setSource] = useState(''); // Track if assessment is from Bedrock or fallback
   const navigate = useNavigate();
   
+  // Function to send assessment result to OpenAI Chat Completion
+  const sendToOpenAI = async (assessmentResult) => {
+    try {
+      // Initialize the OpenAI client
+      const openai = new OpenAI({
+        apiKey: process.env.REACT_APP_OPENAI_API_KEY, // Make sure this env variable is set
+        dangerouslyAllowBrowser: true // Note: This is for demo purposes, in production use a backend proxy
+      });
+
+      // Format the assessment data
+      const formattedAssessment = formatAssessmentData(assessmentResult);
+
+      // Call the OpenAI API
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini", // Or any other model you prefer
+        messages: [
+          {
+            role: "system",
+            content: "You are a medical AI assistant analyzing patient assessment results. Provide clear, professional recommendations based on the assessment data."
+          },
+          {
+            role: "user",
+            content: `Please analyze this patient assessment result and provide recommendations:\n\n${formattedAssessment}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      });
+
+      // Return the response
+      return response.choices[0].message.content;
+    } catch (error) {
+      console.error('Error sending assessment to OpenAI:', error);
+      return `Error analyzing assessment: ${error.message}`;
+    }
+  };
+
+  // Format assessment data for OpenAI prompt
+  const formatAssessmentData = (assessment) => {
+    const parts = [];
+    
+    // Add vitals if available
+    if (assessment.vitals || assessment.bloodPressure) {
+      parts.push("Vitals:");
+      const vitalsData = assessment.vitals || {};
+      if (assessment.bloodPressure) {
+        parts.push(`- Blood Pressure: ${assessment.bloodPressure}`);
+      }
+      if (vitalsData.systolic && vitalsData.diastolic) {
+        parts.push(`- Blood Pressure: ${vitalsData.systolic}/${vitalsData.diastolic} mmHg`);
+      }
+      if (vitalsData.heart_rate) {
+        parts.push(`- Heart Rate: ${vitalsData.heart_rate} bpm`);
+      }
+      if (vitalsData.temperature) {
+        parts.push(`- Temperature: ${vitalsData.temperature} °F`);
+      }
+      if (vitalsData.oxygen_saturation) {
+        parts.push(`- Oxygen Saturation: ${vitalsData.oxygen_saturation}%`);
+      }
+    }
+    
+    // Add symptoms if available
+    if (assessment.symptoms || assessment.userInput) {
+      parts.push("\nReported Symptoms:");
+      parts.push(`- ${assessment.symptoms || assessment.userInput || "None reported"}`);
+    }
+    
+    // Add initial diagnosis if available
+    if (assessment.initialDiagnosis) {
+      parts.push("\nInitial Diagnosis:");
+      parts.push(`- ${assessment.initialDiagnosis}`);
+    }
+    
+    // Add any other relevant data
+    for (const [key, value] of Object.entries(assessment)) {
+      if (!['vitals', 'bloodPressure', 'symptoms', 'userInput', 'initialDiagnosis', 'healthTips', 'source'].includes(key) && value) {
+        parts.push(`\n${key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:`);
+        parts.push(`- ${value}`);
+      }
+    }
+    
+    return parts.join('\n');
+  };
+
   // Load vitals and symptoms from sessionStorage on component mount
   // and automatically generate diagnosis
   useEffect(() => {
@@ -89,6 +174,10 @@ const BedrockTest = () => {
       console.log('Health assessment processed result:', result);
 
       
+      
+      // Send the processed result to OpenAI Chat Completion
+      const openAiResult = await sendToOpenAI(result);
+      console.log('OpenAI analysis:', openAiResult);
       
       // Check if the result has initialDiagnosis and healthTips
       if (result && result.initialDiagnosis) {
@@ -278,6 +367,10 @@ const BedrockTest = () => {
                 }
                 
                 console.log('Test assessment processed result:', result);
+                
+                // Send the processed result to OpenAI Chat Completion
+                const openAiResult = await sendToOpenAI(result);
+                console.log('OpenAI analysis:', openAiResult);
                 
                 // Check if the result has initialDiagnosis and healthTips
                 if (result && result.initialDiagnosis) {
