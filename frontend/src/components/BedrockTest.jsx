@@ -87,6 +87,8 @@ const BedrockTest = () => {
       }
       
       console.log('Health assessment processed result:', result);
+
+      
       
       // Check if the result has initialDiagnosis and healthTips
       if (result && result.initialDiagnosis) {
