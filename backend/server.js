@@ -3,16 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
-const AWS = require('aws-sdk');
 const bodyParser = require('body-parser');
-const pollyRoute = require('./routes/polly');
-const transcribeRoute = require('./routes/transcribe');
-
-AWS.config.update({
-  region: process.env.AWS_REGION,
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-});
 
 const app = express();
 const server = http.createServer(app);
@@ -44,10 +35,9 @@ app.set('io', io);
 app.use('/api/patients', require('./routes/patients'));
 app.use('/api/queue', require('./routes/queue'));
 app.use('/api/whisper', require('./routes/whisper'));
-app.use('/api/openai', require('./routes/tts'));
 app.use('/api/rekognition', require('./routes/rekognition'));
-app.use('/api/polly', pollyRoute);
-app.use('/api/transcribe', require('./routes/transcribe'));
+app.use('/api/openai-tts', require('./routes/openai-tts'));
+
 
 // Basic health check
 app.get('/api/test', (req, res) => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Activity, Heart } from 'lucide-react';
 import dynamoService from '../services/dynamoService';
+import supabaseService from '../services/supabaseService';
 
 const VitalsCollection = ({ patient, onComplete }) => {
   const [vitals, setVitals] = useState({
@@ -50,40 +51,55 @@ const VitalsCollection = ({ patient, onComplete }) => {
     const { systolic, diastolic, heartRate } = vitals;
 
     try {
-      // Save vitals data first
-      if (onComplete) {
+      // Format vitals data
+      const vitalsData = {
+        temperature: 36.5, // Default temperature if not collected
+        heartRate: parseInt(heartRate),
+        bloodPressure: `${systolic}/${diastolic}`,
+        systolic: parseInt(systolic), // Add systolic separately
+        diastolic: parseInt(diastolic), // Add diastolic separately
+        oxygenLevel: 98, // Default oxygen level if not collected
+      };
+
+      // Save to both DynamoDB and Supabase
+      // Log patient data for debugging
+      console.log('Patient data received:', patient);
+      
+      // Use a fallback ID if NRIC is not available
+      const patientId = patient?.nric || patient?.id || 'unknown-patient';
+      
+      // Let onComplete handle the Supabase saving
+      console.log('Preparing vitals data for submission:', vitalsData);
+        
         // Pass the vitals object directly with symptoms from patient
         const vitalsWithSymptoms = {
           ...vitals,
-          user_input: patient.user_input || patient.symptoms || "No symptoms reported"
+          user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
         };
         console.log('Submitting vitals with symptoms:', vitalsWithSymptoms);
         
-        // Save to DynamoDB
-        await onComplete(vitalsWithSymptoms);
+        // Save to DynamoDB (legacy)
+        if (onComplete) {
+          await onComplete(vitalsWithSymptoms);
+        }
         
-        // Store vitals and symptoms in sessionStorage for BedrockTest page
+        // Store vitals and symptoms in sessionStorage
         sessionStorage.setItem('patientVitals', JSON.stringify({
           systolic: parseInt(systolic),
           diastolic: parseInt(diastolic),
           heart_rate: parseInt(heartRate),
-          user_input: patient.user_input || patient.symptoms || "No symptoms reported"
+          user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
         }));
         
-        // Redirect to BedrockTest page
-        console.log('Redirecting to BedrockTest page with vitals:', {
-          systolic: parseInt(systolic),
-          diastolic: parseInt(diastolic),
-          heart_rate: parseInt(heartRate),
-          user_input: patient.user_input || patient.symptoms || "No symptoms reported"
-        });
-        window.location.href = '/bedrock-test';
-      }
+        // Redirect to dashboard page
+        console.log('Redirecting to dashboard page with vitals');
+        window.location.href = '/dashboard';
+      // No else clause - always proceed with saving
       
       setSuccess(true);
     } catch (error) {
       console.error('Save failed:', error);
-      alert('Failed to save vitals');
+      alert('Failed to save vitals: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -149,6 +165,21 @@ const VitalsCollection = ({ patient, onComplete }) => {
       {success && (
         <p className="text-green-600 text-center mt-2">Vitals saved successfully!</p>
       )}
+      
+      {/* Admin button to create tables */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <button
+          type="button"
+          onClick={() => {
+            supabaseService.createTables().then(result => {
+              if (result) alert('Tables created or already exist');
+            });
+          }}
+          className="text-xs text-gray-500 underline"
+        >
+          Admin: Create Tables
+        </button>
+      </div>
     </form>
   );
 };

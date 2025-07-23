@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { supabase } from '../services/supabaseClient';
-import { patientAPI } from '../services/api';
 import PatientForm from './PatientForm';
 import VitalsCollection from './VitalsCollection';
 import KioskNavigation from './KioskNavigation';
@@ -26,15 +24,34 @@ const KioskInterface = () => {
     setError('');
 
     try {
-      console.log('Patient registration data:', patientData); // Log the data to verify symptoms and user_input
-      const response = await patientAPI.register(patientData);
+      console.log('Patient registration data:', patientData);
+      
+      // Use supabaseService to save patient data
+      const supabaseService = (await import('../services/supabaseService')).default;
+      
+      // Use NRIC as ID or generate one if not available
+      const patientId = patientData.nric || 'patient_' + Math.random().toString(36).substring(2, 10);
+      
+      // Save patient to Supabase
+      await supabaseService.savePatient({
+        ...patientData,
+        id: patientId,
+        nric: patientData.nric || patientId
+      });
+      
+      console.log('Patient saved to Supabase successfully');
+      
+      // Create patient object for the UI
       const patientWithMobileUrl = {
-        ...response.data.patient,
-        mobileUrl: `${window.location.origin}/mobile/${response.data.patient.id}`,
-        // Ensure symptoms and user_input are preserved
+        id: patientId,
+        name: patientData.name,
+        nric: patientData.nric || patientId,
+        queueNumber: Math.floor(Math.random() * 100) + 1,
+        mobileUrl: `${window.location.origin}/mobile/${patientId}`,
         symptoms: patientData.symptoms || '',
         user_input: patientData.user_input || patientData.symptoms || ''
       };
+      
       setPatient(patientWithMobileUrl);
       setCurrentStep('vitals');
     } catch (err) {
@@ -52,27 +69,25 @@ const KioskInterface = () => {
     try {
       console.log('Vitals data received:', vitalsData);
       
-      // Save vitals directly using dynamoService instead of patientAPI
-      const dynamoService = (await import('../services/dynamoService')).default;
-      await dynamoService.saveVisit({
-        patient_id: patient.id,
+      // Use supabaseService
+      const supabaseService = (await import('../services/supabaseService')).default;
+      
+      // Format blood pressure
+      const bloodPressure = `${vitalsData.systolic}/${vitalsData.diastolic}`;
+      
+      // Save vitals to Supabase
+      await supabaseService.saveVitals(patient.id, {
+        heartRate: parseInt(vitalsData.heartRate),
         systolic: parseInt(vitalsData.systolic),
         diastolic: parseInt(vitalsData.diastolic),
-        heart_rate: parseInt(vitalsData.heartRate),
-        user_input: patient.symptoms || patient.user_input || "No symptoms reported"
-      });
-
-      // Calculate next queue order - skip Supabase
-      const nextOrder = 1; // Default to 1 if we can't get from Supabase
-
-      // Automatically insert into queue after vitals are complete
-      await dynamoService.updateQueue({
-        patient_id: patient.id,
-        status: 'waiting',
-        priority: 'normal',
-        order: nextOrder
+        bloodPressure: bloodPressure,
+        temperature: 36.5,
+        oxygenLevel: 98
       });
       
+      console.log('Vitals saved to Supabase successfully');
+      
+      // Move to navigation step
       setCurrentStep('navigation');
     } catch (err) {
       setError('Failed to save vitals. Please try again.');
@@ -115,33 +130,7 @@ const KioskInterface = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="fixed top-4 right-4 z-50">
-          <button
-            onClick={async () => {
-              try {
-                const res = await patientAPI.register({
-                  nric: 'S1234567A',
-                  name: 'John Dev',
-                  age: '30',
-                  phone: '91234567'
-                });
-                const devPatient = {
-                  ...res.data.patient,
-                  mobileUrl: `${window.location.origin}/mobile/${res.data.patient.id}`
-                };
-                setPatient(devPatient);
-                setCurrentStep('vitals');
-              } catch (err) {
-                console.error('Dev skip failed:', err);
-              }
-            }}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg shadow"
-          >
-            🚀 Skip to Vitals
-          </button>
-        </div>
-      )}
+
 
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

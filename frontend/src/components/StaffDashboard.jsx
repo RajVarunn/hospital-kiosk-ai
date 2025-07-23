@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import patientVisitService from '../services/patientVisitService';
 import { Users, Activity, Clock, AlertCircle, CheckCircle, User, FileText, TrendingUp, RefreshCw, Phone, Heart, Thermometer, Calendar, MapPin, Pill } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+
+// Mock patient visit service
+const patientVisitService = {
+  getAllVisits: async () => [],
+  getQueue: async () => [],
+  getPatients: async () => [],
+  getVitals: async () => [],
+  updateQueue: async () => ({}),
+  requestPreDiagnosis: async () => ({ success: false, message: 'Service not available' })
+};
 
 const StaffDashboard = () => {
   const [queueEntries, setQueueEntries] = useState([]);

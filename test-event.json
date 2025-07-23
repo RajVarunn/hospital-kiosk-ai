@@ -1,4 +1,0 @@
-{
-  "httpMethod": "POST",
-  "body": "{\"action\":\"savePatient\",\"user_id\":\"P12345\",\"name\":\"John Doe\",\"nric\":\"S1234567D\",\"dob\":\"1980-01-01\",\"age\":43,\"gender\":\"Male\",\"preferred_language\":\"English\",\"medical_history\":[\"Hypertension\",\"Diabetes\"]}"
-}

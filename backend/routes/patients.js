@@ -7,8 +7,15 @@ const QRCode = require('qrcode');
 let patients = {};
 let queue = [];
 
-// OpenAI service (create this file next)
-const openaiService = require('../services/openai');
+// Mock OpenAI service
+const openaiService = {
+  generateMedicalResponse: async (message, context) => {
+    return {
+      message: `This is a mock response to: "${message}". Real AI integration is not implemented.`,
+      extractedInfo: []
+    };
+  }
+};
 
 // Register new patient
 router.post('/register', async (req, res) => {

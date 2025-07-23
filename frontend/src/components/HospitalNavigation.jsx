@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Map, Navigation, MapPin, CornerDownLeft, Compass, Loader, Layers } from 'lucide-react';
+
 import dynamoService from '../services/dynamoService';
-import bedrockService from '../services/bedrockService';
 import './HospitalNavigation.css';
 
 const HospitalNavigation = ({ onBack, userId }) => {
@@ -116,15 +116,8 @@ const HospitalNavigation = ({ onBack, userId }) => {
       'Your destination will be ahead'
     ];
     
-    try {
-      // Try to get AI-generated instructions from Bedrock
-      const aiInstructions = await bedrockService.generateNavigationInstructions('current location', destName);
-      if (aiInstructions && aiInstructions.length > 0) {
-        instructions = aiInstructions;
-      }
-    } catch (error) {
-      console.warn('Failed to generate AI instructions, using default:', error);
-    }
+    // AI-generated instructions removed
+    console.log('Using default navigation instructions for:', destName);
     
     return {
       distance,
