@@ -37,6 +37,7 @@ app.use('/api/queue', require('./routes/queue'));
 app.use('/api/whisper', require('./routes/whisper'));
 app.use('/api/rekognition', require('./routes/rekognition'));
 app.use('/api/openai-tts', require('./routes/openai-tts'));
+app.use('/api/openai', require('./routes/openai'));
 
 
 // Basic health check

@@ -306,6 +306,30 @@ const supabaseService = {
       console.error('Error fetching vitals:', error);
       return [];
     }
+  },
+
+  // Save pre-diagnosis to patient record
+  savePreDiagnosis: async (patientId, preDiagnosis) => {
+    try {
+      if (!supabase) {
+        console.warn('Supabase not initialized, skipping savePreDiagnosis');
+        return null;
+      }
+      
+      const { data, error } = await supabase
+        .from('patients')
+        .update({ 
+          ai_pre_diagnosis: preDiagnosis,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', patientId);
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error saving pre-diagnosis:', error);
+      return null;
+    }
   }
 };
 

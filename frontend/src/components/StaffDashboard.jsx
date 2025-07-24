@@ -3,6 +3,7 @@ import { Users, Activity, Clock, AlertCircle, CheckCircle, User, FileText, Trend
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 import supabaseService from '../services/supabaseService';
+import preDiagnosisService from '../services/preDiagnosisService';
 
 const StaffDashboard = () => {
   const [queueEntries, setQueueEntries] = useState([]);
@@ -50,7 +51,7 @@ const StaffDashboard = () => {
           current_medications: [],
           chief_complaint: patient.symptoms || 'No complaint recorded',
           ai_summary: '',
-          ai_pre_diagnosis: null,
+          ai_pre_diagnosis: patient.ai_pre_diagnosis || null,
           symptoms: patient.symptoms ? [patient.symptoms] : [],
           status: 'waiting',
           priority: 'normal',
@@ -104,10 +105,61 @@ const StaffDashboard = () => {
     fetchQueueData();
   }, []);
 
-  // Request pre-diagnosis for a patient (placeholder)
+  // Request pre-diagnosis for a patient
   const requestPreDiagnosis = async (patientId) => {
-    console.log('Pre-diagnosis feature not yet implemented for patient:', patientId);
-    alert('Pre-diagnosis feature coming soon!');
+    if (!patientId) return;
+    
+    try {
+      setLoading(true);
+      
+      // Find the patient in our queue
+      const patient = queueEntries.find(entry => entry.patientId === patientId);
+      if (!patient) {
+        console.error('Patient not found:', patientId);
+        return;
+      }
+      
+      console.log('Generating pre-diagnosis for patient:', patient.name);
+      
+      // Prepare patient data for AI analysis
+      const patientData = {
+        name: patient.name,
+        age: patient.age,
+        symptoms: patient.chief_complaint,
+        vitals: patient.vitals
+      };
+      
+      // Generate pre-diagnosis using AI
+      const result = await preDiagnosisService.generatePreDiagnosis(patientData);
+      
+      if (result.success) {
+        // Save pre-diagnosis to Supabase
+        await supabaseService.savePreDiagnosis(patientId, result.data);
+        
+        // Update the patient's pre-diagnosis in the queue
+        const updatedQueue = queueEntries.map(entry => 
+          entry.patientId === patientId 
+            ? { ...entry, ai_pre_diagnosis: result.data }
+            : entry
+        );
+        setQueueEntries(updatedQueue);
+        
+        // Update selected patient if it's the same one
+        if (selectedPatient?.patientId === patientId) {
+          setSelectedPatient({ ...selectedPatient, ai_pre_diagnosis: result.data });
+        }
+        
+        console.log('Pre-diagnosis generated and saved successfully:', result.data);
+      } else {
+        console.error('Failed to generate pre-diagnosis:', result.message);
+        alert(`Failed to generate pre-diagnosis: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error generating pre-diagnosis:', error);
+      alert(`Failed to generate pre-diagnosis: ${error.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle drag and drop reordering
