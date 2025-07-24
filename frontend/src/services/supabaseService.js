@@ -332,6 +332,60 @@ const supabaseService = {
     }
   },
 
+  // Add patient to queue
+  addToQueue: async (patientId, priority = 'normal') => {
+    try {
+      if (!supabase) return null;
+      
+      // Get the next position number
+      const { data: maxPos } = await supabase
+        .from('queue')
+        .select('order_position')
+        .order('order_position', { ascending: false })
+        .limit(1);
+      
+      const nextPosition = (maxPos?.[0]?.order_position || 0) + 1;
+      
+      const { data, error } = await supabase
+        .from('queue')
+        .insert({
+          patient_id: patientId,
+          priority: priority,
+          status: 'waiting',
+          estimated_wait: priority === 'urgent' ? 5 : priority === 'high' ? 15 : 30,
+          order_position: nextPosition
+        });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error adding to queue:', error);
+      return null;
+    }
+  },
+
+  // Update queue order
+  updateQueueOrder: async (queueItems) => {
+    try {
+      if (!supabase) return null;
+      
+      for (let i = 0; i < queueItems.length; i++) {
+        const { error } = await supabase
+          .from('queue')
+          .update({ order_position: i + 1 })
+          .eq('patient_id', queueItems[i].id);
+        
+        if (error) {
+          console.error('Error updating position for patient', queueItems[i].id, error);
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating queue order:', error);
+      return null;
+    }
+  }
 
 };
 
@@ -372,6 +426,7 @@ supabaseService.createTables = async () => {
   }
 };
 
+export { supabase };
 export default supabaseService;
 
 // Test functions that can be called after supabaseService is defined

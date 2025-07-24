@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, AlertCircle, CheckCircle, User, Calendar, Activity } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
+import { Clock, Users, AlertCircle, CheckCircle, User, Calendar, Activity, GripVertical } from 'lucide-react';
+import supabaseService, { supabase } from '../services/supabaseService';
 
 const QueueDisplay = () => {
   const [currentQueue, setCurrentQueue] = useState([]);
@@ -13,6 +13,8 @@ const QueueDisplay = () => {
       const { data: queue, error: queueError } = await supabase
         .from('queue')
         .select('*, patients(name, department)')
+        .order('order_position', { ascending: true })
+        .order('priority', { ascending: false })
         .order('created_at', { ascending: true });
 
       const { data: notices, error: noticeError } = await supabase
@@ -28,7 +30,9 @@ const QueueDisplay = () => {
       const validQueue = queue.map(q => ({
         ...q,
         name: q.patients?.name || 'Unknown',
-        department: q.patients?.department || 'N/A'
+        department: q.patients?.department || 'General',
+        time: new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        estimatedWait: q.estimated_wait || 15
       }));
 
       setCurrentQueue(validQueue || []);
@@ -150,7 +154,44 @@ const QueueDisplay = () => {
               {currentQueue.map((patient, index) => (
                 <div
                   key={patient.id}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', index.toString());
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    const dropIndex = index;
+                    
+                    console.log('Drag from', dragIndex, 'to', dropIndex);
+                    
+                    if (dragIndex !== dropIndex) {
+                      const newQueue = [...currentQueue];
+                      const [draggedItem] = newQueue.splice(dragIndex, 1);
+                      newQueue.splice(dropIndex, 0, draggedItem);
+                      
+                      console.log('New queue order:', newQueue.map(q => ({ id: q.id, name: q.name })));
+                      
+                      // Update each item's position in database
+                      for (let i = 0; i < newQueue.length; i++) {
+                        console.log('Updating patient', newQueue[i].patient_id, 'to position', i + 1);
+                        const { error } = await supabase
+                          .from('queue')
+                          .update({ order_position: i + 1 })
+                          .eq('patient_id', newQueue[i].patient_id);
+                        
+                        if (error) {
+                          console.error('Update failed for patient', newQueue[i].patient_id, error);
+                        } else {
+                          console.log('Updated patient', newQueue[i].patient_id, 'successfully');
+                        }
+                      }
+                      
+                      setCurrentQueue(newQueue);
+                    }
+                  }}
+                  className={`p-4 rounded-xl border-2 transition-all duration-300 cursor-move ${
                     patient.priority === 'urgent' 
                       ? 'border-red-200 bg-red-50' 
                       : patient.priority === 'high'
@@ -160,6 +201,7 @@ const QueueDisplay = () => {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
+                      <GripVertical className="w-4 h-4 text-gray-400" />
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(patient.status)}
                         <span className="text-2xl font-bold text-gray-900">

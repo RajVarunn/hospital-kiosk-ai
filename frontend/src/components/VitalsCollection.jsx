@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Activity, Heart } from 'lucide-react';
 import dynamoService from '../services/dynamoService';
 import supabaseService from '../services/supabaseService';
+import preDiagnosisService from '../services/preDiagnosisService';
 
 const VitalsCollection = ({ patient, onComplete }) => {
   const [vitals, setVitals] = useState({
@@ -61,39 +62,46 @@ const VitalsCollection = ({ patient, onComplete }) => {
         oxygenLevel: 98, // Default oxygen level if not collected
       };
 
-      // Save to both DynamoDB and Supabase
-      // Log patient data for debugging
-      console.log('Patient data received:', patient);
-      
-      // Use a fallback ID if NRIC is not available
       const patientId = patient?.nric || patient?.id || 'unknown-patient';
       
-      // Let onComplete handle the Supabase saving
-      console.log('Preparing vitals data for submission:', vitalsData);
-        
-        // Pass the vitals object directly with symptoms from patient
-        const vitalsWithSymptoms = {
+      // Save vitals to Supabase
+      await supabaseService.saveVitals(patientId, vitalsData);
+      
+      // Generate pre-diagnosis and determine priority
+      const diagnosis = await preDiagnosisService.generatePreDiagnosis({
+        name: patient?.name,
+        age: patient?.age,
+        symptoms: patient?.symptoms || patient?.user_input || "No symptoms reported",
+        vitals: {
+          heart_rate: parseInt(heartRate),
+          bp_systolic: parseInt(systolic),
+          bp_diastolic: parseInt(diastolic)
+        }
+      });
+      
+      // Add to queue with priority based on diagnosis
+      if (diagnosis.success) {
+        const priority = diagnosis.data.urgencyLevel === 'high' ? 'urgent' : 
+                        diagnosis.data.urgencyLevel === 'medium' ? 'high' : 'normal';
+        await supabaseService.addToQueue(patientId, priority);
+      }
+      
+      // Legacy save
+      if (onComplete) {
+        await onComplete({
           ...vitals,
           user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
-        };
-        console.log('Submitting vitals with symptoms:', vitalsWithSymptoms);
-        
-        // Save to DynamoDB (legacy)
-        if (onComplete) {
-          await onComplete(vitalsWithSymptoms);
-        }
-        
-        // Store vitals and symptoms in sessionStorage
-        sessionStorage.setItem('patientVitals', JSON.stringify({
-          systolic: parseInt(systolic),
-          diastolic: parseInt(diastolic),
-          heart_rate: parseInt(heartRate),
-          user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
-        }));
-        
-        // Redirect to dashboard page
-        console.log('Redirecting to dashboard page with vitals');
-        window.location.href = '/dashboard';
+        });
+      }
+      
+      sessionStorage.setItem('patientVitals', JSON.stringify({
+        systolic: parseInt(systolic),
+        diastolic: parseInt(diastolic),
+        heart_rate: parseInt(heartRate),
+        user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
+      }));
+      
+      window.location.href = '/dashboard';
       // No else clause - always proceed with saving
       
       setSuccess(true);

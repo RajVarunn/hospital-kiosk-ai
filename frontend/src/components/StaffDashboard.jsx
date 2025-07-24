@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Activity, Clock, AlertCircle, CheckCircle, User, FileText, TrendingUp, RefreshCw, Phone, Heart, Thermometer, Calendar, MapPin, Pill } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-import supabaseService from '../services/supabaseService';
+import supabaseService, { supabase } from '../services/supabaseService';
 import preDiagnosisService from '../services/preDiagnosisService';
 
 const StaffDashboard = () => {
@@ -30,13 +30,22 @@ const StaffDashboard = () => {
     try {
       // Fetch all patient data from Supabase
       const patientsWithVitals = await fetchPatientData() || [];
+      
+      // Get queue order from Supabase
+      const { data: queueOrder } = await supabase
+        .from('queue')
+        .select('patient_id, order_position, priority, status, estimated_wait')
+        .order('order_position', { ascending: true });
 
       // Transform Supabase data to match dashboard format
-      const enrichedQueue = patientsWithVitals.map((patient, index) => {
+      let enrichedQueue = patientsWithVitals.map((patient, index) => {
         // Get the latest vitals for this patient
         const latestVitals = patient.vitals && patient.vitals.length > 0 
           ? patient.vitals[0] // vitals are ordered by created_at desc
           : {};
+        
+        // Find queue info for this patient
+        const queueInfo = queueOrder?.find(q => q.patient_id === patient.id || q.patient_id === patient.nric);
         
         return {
           id: patient.id || patient.nric,
@@ -53,9 +62,10 @@ const StaffDashboard = () => {
           ai_summary: '',
           ai_pre_diagnosis: patient.ai_pre_diagnosis || null,
           symptoms: patient.symptoms ? [patient.symptoms] : [],
-          status: 'waiting',
-          priority: 'normal',
-          estimatedWait: (index + 1) * 15, // Simple estimation
+          status: queueInfo?.status || 'waiting',
+          priority: queueInfo?.priority || 'normal',
+          estimatedWait: queueInfo?.estimated_wait || (index + 1) * 15,
+          queuePosition: queueInfo?.order_position || 999, // High number for unqueued patients
           vitals: {
             heart_rate: latestVitals.heart_rate,
             temperature: latestVitals.temperature,
@@ -65,7 +75,12 @@ const StaffDashboard = () => {
           },
           visit_data: patient
         };
-      }).filter(entry => entry && entry.id); // Filter out any empty entries
+      }).filter(entry => entry && entry.id);
+      
+      // Sort by queue position if queue data exists
+      if (queueOrder && queueOrder.length > 0) {
+        enrichedQueue.sort((a, b) => a.queuePosition - b.queuePosition);
+      }
 
       setQueueEntries(enrichedQueue);
 
@@ -173,7 +188,14 @@ const StaffDashboard = () => {
 
     // Update UI optimistically
     setQueueEntries(reordered);
-    console.log('Queue reordered (UI only - database update not implemented)');
+    
+    // Update database with new order
+    try {
+      await supabaseService.updateQueueOrder(reordered.map(item => ({ id: item.id })));
+      console.log('Queue order updated in database');
+    } catch (error) {
+      console.error('Failed to update queue order:', error);
+    }
   };
 
   const markAsReady = async (queueId) => {
