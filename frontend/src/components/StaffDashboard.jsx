@@ -2,15 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Activity, Clock, AlertCircle, CheckCircle, User, FileText, TrendingUp, RefreshCw, Phone, Heart, Thermometer, Calendar, MapPin, Pill } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-// Mock patient visit service
-const patientVisitService = {
-  getAllVisits: async () => [],
-  getQueue: async () => [],
-  getPatients: async () => [],
-  getVitals: async () => [],
-  updateQueue: async () => ({}),
-  requestPreDiagnosis: async () => ({ success: false, message: 'Service not available' })
-};
+import supabaseService from '../services/supabaseService';
 
 const StaffDashboard = () => {
   const [queueEntries, setQueueEntries] = useState([]);
@@ -19,15 +11,15 @@ const StaffDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [patientVisits, setPatientVisits] = useState([]);
 
-  // Fetch patient visits from DynamoDB
-  const fetchPatientVisits = async () => {
+  // Fetch patient data from Supabase
+  const fetchPatientData = async () => {
     try {
-      const visits = await patientVisitService.getAllVisits();
-      console.log('Patient visits from DynamoDB:', visits);
-      setPatientVisits(visits);
-      return visits;
+      const patientsWithVitals = await supabaseService.getAllPatientsWithVitals();
+      console.log('Patients with vitals from Supabase:', patientsWithVitals);
+      setPatientVisits(patientsWithVitals);
+      return patientsWithVitals;
     } catch (error) {
-      console.error('Error fetching patient visits from DynamoDB:', error);
+      console.error('Error fetching patient data from Supabase:', error);
       return [];
     }
   };
@@ -35,51 +27,42 @@ const StaffDashboard = () => {
   const fetchQueueData = async () => {
     setLoading(true);
     try {
-      // Fetch all data from DynamoDB
-      const queueData = await patientVisitService.getQueue() || [];
-      const patientData = await patientVisitService.getPatients() || [];
-      const visits = await fetchPatientVisits() || [];
-      const vitalsData = await patientVisitService.getVitals() || [];
+      // Fetch all patient data from Supabase
+      const patientsWithVitals = await fetchPatientData() || [];
 
-      // Guard against undefined queueData
-      if (!queueData || !Array.isArray(queueData)) {
-        console.error('Queue data is not an array:', queueData);
-        setQueueEntries([]);
-        setLoading(false);
-        return;
-      }
-
-      const enrichedQueue = queueData.map(entry => {
-        // Guard against undefined entry
-        if (!entry || !entry.patient_id) return {};
-        
-        const patient = Array.isArray(patientData) ? 
-          (patientData.find(p => p && p.user_id === entry.patient_id) || {}) : {};
-        const vitals = Array.isArray(vitalsData) ? 
-          (vitalsData.find(v => v && v.patient_id === entry.patient_id) || {}) : {};
-        
-        // Find matching visit data from DynamoDB, with fallback to empty object
-        const visit = Array.isArray(visits) ? 
-          (visits.find(v => v && v.patient_id === entry.patient_id) || {}) : {};
+      // Transform Supabase data to match dashboard format
+      const enrichedQueue = patientsWithVitals.map((patient, index) => {
+        // Get the latest vitals for this patient
+        const latestVitals = patient.vitals && patient.vitals.length > 0 
+          ? patient.vitals[0] // vitals are ordered by created_at desc
+          : {};
         
         return {
-          ...entry, // retains queue properties
-          id: entry.queue_id || entry.id, // ensure we have an id
-          patientId: patient.user_id, // store patient ID separately
-          vitals: vitals || {},
+          id: patient.id || patient.nric,
+          patientId: patient.id,
           name: patient.name || 'Unknown',
           age: patient.age || '',
-          department: patient.department || 'General',
-          appointment_time: patient.appointment_time || '',
+          department: 'General',
+          appointment_time: new Date(patient.created_at).toLocaleTimeString(),
           nric: patient.nric || '',
-          phone: patient.phone || '',
-          medical_history: patient.medical_history || [],
-          current_medications: patient.current_medications || visit.current_medication || [],
-          chief_complaint: patient.chief_complaint || visit.user_input || '',
-          ai_summary: patient.ai_summary || '',
-          ai_pre_diagnosis: visit.ai_pre_diagnosis || null,
-          symptoms: visit.symptoms || [],
-          visit_data: visit || {}
+          phone: '',
+          medical_history: [],
+          current_medications: [],
+          chief_complaint: patient.symptoms || 'No complaint recorded',
+          ai_summary: '',
+          ai_pre_diagnosis: null,
+          symptoms: patient.symptoms ? [patient.symptoms] : [],
+          status: 'waiting',
+          priority: 'normal',
+          estimatedWait: (index + 1) * 15, // Simple estimation
+          vitals: {
+            heart_rate: latestVitals.heart_rate,
+            temperature: latestVitals.temperature,
+            bp_systolic: latestVitals.blood_pressure ? latestVitals.blood_pressure.split('/')[0] : null,
+            bp_diastolic: latestVitals.blood_pressure ? latestVitals.blood_pressure.split('/')[1] : null,
+            oxygen_saturation: latestVitals.oxygen_level
+          },
+          visit_data: patient
         };
       }).filter(entry => entry && entry.id); // Filter out any empty entries
 
@@ -121,40 +104,16 @@ const StaffDashboard = () => {
     fetchQueueData();
   }, []);
 
-  // Request pre-diagnosis for a patient
+  // Request pre-diagnosis for a patient (placeholder)
   const requestPreDiagnosis = async (patientId) => {
-    if (!patientId) return;
-    
-    try {
-      setLoading(true);
-      
-      // Request pre-diagnosis using Bedrock
-      console.log('Requesting pre-diagnosis with Bedrock for patient:', patientId);
-      const result = await patientVisitService.requestPreDiagnosis(patientId);
-      
-      if (result.success) {
-        // Refresh data to get updated pre-diagnosis
-        await fetchQueueData();
-        console.log('Pre-diagnosis generated successfully:', result.data);
-      } else {
-        console.error('Failed to generate pre-diagnosis:', result.message);
-        alert(`Failed to generate pre-diagnosis: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('Error generating pre-diagnosis:', error);
-      alert(`Failed to generate pre-diagnosis: ${error.message || 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
+    console.log('Pre-diagnosis feature not yet implemented for patient:', patientId);
+    alert('Pre-diagnosis feature coming soon!');
   };
 
-  // Updated handleDragEnd with ID verification
+  // Handle drag and drop reordering
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
     if (result.destination.index === result.source.index) return;
-
-    console.log('=== DRAG END STARTED ===');
-    console.log('From index:', result.source.index, 'To index:', result.destination.index);
 
     const reordered = Array.from(queueEntries);
     const [moved] = reordered.splice(result.source.index, 1);
@@ -162,73 +121,32 @@ const StaffDashboard = () => {
 
     // Update UI optimistically
     setQueueEntries(reordered);
-
-    try {
-      // Update queue order in DynamoDB
-      for (let i = 0; i < reordered.length; i++) {
-        const entry = reordered[i];
-        
-        console.log(`\n--- Updating entry ${i + 1}/${reordered.length} ---`);
-        console.log(`ID: ${entry.id || entry.queue_id}`);
-        console.log(`Name: ${entry.name || 'Unknown'}`);
-        console.log(`Setting order to: ${i}`);
-        
-        try {
-          // Update queue entry order
-          await patientVisitService.updateQueue({
-            queue_id: entry.id || entry.queue_id,
-            patient_id: entry.patient_id,
-            order: i,
-            status: entry.status
-          });
-          
-          console.log(`✅ Successfully updated queue entry`);
-        } catch (updateError) {
-          console.error(`❌ Error updating entry:`, updateError);
-        }
-        
-        // Small delay to avoid overwhelming the database
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-
-      console.log('\n=== ALL UPDATES COMPLETED ===');
-      
-      // Force refresh data to verify
-
-    } catch (error) {
-      console.error('\n❌ ERROR DURING UPDATE:', error);
-      alert(`Failed to update queue order: ${error.message}`);
-      await fetchQueueData();
-    }
+    console.log('Queue reordered (UI only - database update not implemented)');
   };
 
   const markAsReady = async (queueId) => {
-    try {
-      await patientVisitService.updateQueue({
-        queue_id: queueId,
-        status: 'ready'
-      });
-      
-      await fetchQueueData();
-      // Re-select the updated patient object after fetch
-      const updated = queueEntries.find(entry => entry.id === queueId);
-      if (updated) setSelectedPatient(updated);
-    } catch (error) {
-      console.error('Error marking patient as ready:', error);
+    // Update status locally
+    const updated = queueEntries.map(entry => 
+      entry.id === queueId ? { ...entry, status: 'ready' } : entry
+    );
+    setQueueEntries(updated);
+    
+    // Update selected patient if it's the same one
+    if (selectedPatient?.id === queueId) {
+      setSelectedPatient({ ...selectedPatient, status: 'ready' });
     }
+    
+    console.log('Patient marked as ready (UI only)');
   };
 
   const callPatient = async (queueId) => {
-    try {
-      await patientVisitService.updateQueue({
-        queue_id: queueId,
-        status: 'serving'
-      });
-      
-      fetchQueueData();
-    } catch (error) {
-      console.error('Error calling patient:', error);
-    }
+    // Update status locally
+    const updated = queueEntries.map(entry => 
+      entry.id === queueId ? { ...entry, status: 'serving' } : entry
+    );
+    setQueueEntries(updated);
+    
+    console.log('Patient called (UI only)');
   };
 
   const getPriorityColor = (priority) => {

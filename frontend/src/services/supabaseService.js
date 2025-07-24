@@ -260,6 +260,52 @@ const supabaseService = {
       console.error('Error fetching patient from Supabase:', error);
       return null; // Don't throw error to prevent app from crashing
     }
+  },
+
+  // Get all patients with their vitals
+  getAllPatientsWithVitals: async () => {
+    try {
+      if (!supabase) {
+        console.warn('Supabase not initialized, skipping getAllPatientsWithVitals');
+        return [];
+      }
+      
+      const { data, error } = await supabase
+        .from('patients')
+        .select(`
+          *,
+          vitals (*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching patients with vitals:', error);
+      return [];
+    }
+  },
+
+  // Get vitals by patient ID
+  getVitalsByPatientId: async (patientId) => {
+    try {
+      if (!supabase) {
+        console.warn('Supabase not initialized, skipping getVitalsByPatientId');
+        return [];
+      }
+      
+      const { data, error } = await supabase
+        .from('vitals')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching vitals:', error);
+      return [];
+    }
   }
 };
 
