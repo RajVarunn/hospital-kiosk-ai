@@ -330,7 +330,9 @@ const supabaseService = {
       console.error('Error saving pre-diagnosis:', error);
       return null;
     }
-  }
+  },
+
+
 };
 
 // No longer needed - using a single method in saveVitals

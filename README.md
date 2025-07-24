@@ -66,7 +66,19 @@ The application uses Supabase as the primary database for storing patient inform
 To set up the Supabase database:
 
 1. Create a new project in Supabase
-2. Create the following tables:
-   - `patients` table with fields: id, name, nric, dob, age, gender, symptoms, created_at
-   - `vitals` table with fields: id, patient_id, temperature, heart_rate, blood_pressure, oxygen_level, created_at
+2. Run the SQL scripts to create tables:
+   - Execute `SUPABASE_TABLE_SETUP.md` for patients and vitals tables
+   - Execute `QUEUE_TABLE_SETUP.sql` for queue management tables
 3. Add your Supabase URL and anon key to the `.env` file
+
+## Queue Management
+
+The system now includes automatic patient queue management with severity-based prioritization:
+
+1. **Automatic Triage**: After vitals collection, AI generates pre-diagnosis and assigns priority
+2. **Priority Levels**: 
+   - `urgent` (high severity) - 5min wait
+   - `high` (medium severity) - 15min wait  
+   - `normal` (low severity) - 30min wait
+3. **Queue Persistence**: Patient order is stored in Supabase and persists across page refreshes
+4. **Real-time Display**: Queue display updates every 10 seconds
