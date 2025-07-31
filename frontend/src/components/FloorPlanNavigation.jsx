@@ -3,7 +3,7 @@ import { MapPin, Navigation, Target, Clock, Building, ChevronUp, ChevronDown } f
 
 const FloorPlanNavigation = () => {
   const [currentFloor, setCurrentFloor] = useState('G');
-  const [currentLocation, setCurrentLocation] = useState({ x: 100, y: 400 });
+  const [currentLocation, setCurrentLocation] = useState({ x: 150, y: 155 });
   const [destination, setDestination] = useState(null);
   const [route, setRoute] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -23,12 +23,12 @@ const FloorPlanNavigation = () => {
   // Predefined locations for each floor (you can expand this)
   const floorLocations = {
     'G': [
-      { id: 'main-entrance', name: 'Main Entrance', x: 100, y: 400 },
-      { id: 'reception', name: 'Reception', x: 200, y: 350 },
-      { id: 'emergency', name: 'Emergency', x: 150, y: 200 },
-      { id: 'pharmacy', name: 'Pharmacy', x: 300, y: 380 },
-      { id: 'cafeteria', name: 'Cafeteria', x: 250, y: 450 },
-      { id: 'elevator-g', name: 'Elevator', x: 350, y: 300 }
+      { id: 'ward-entrance', name: 'Ward Entrance', x: 150, y: 155 },
+      { id: 'clinic-1A', name: 'Clinic 1A', x: 100, y: 425 },
+      { id: 'clinic-1B', name: 'Clinic 1B', x: 200, y: 425 },
+      { id: 'kopitiam', name: 'Kopitiam', x: 105, y: 260 },
+      { id: 'children-eye-centre', name: 'Children Eye Centre', x: 220, y: 250 },
+      { id: 'clinic-1C', name: 'Clinic 1C', x: 105, y: 355 }
     ],
     '1': [
       { id: 'cardiology', name: 'Cardiology', x: 200, y: 250 },
