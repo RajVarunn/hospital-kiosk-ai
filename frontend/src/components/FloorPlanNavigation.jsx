@@ -1,422 +1,370 @@
-import React, { useState, useRef, useEffect } from 'react';
-import navigationService from '../services/navigationService';
-import { MapPin, Navigation, Plus, Minus, Upload, Map } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Navigation, Target, Clock, Building, ChevronUp, ChevronDown } from 'lucide-react';
 
-const FloorPlanNavigation = () => { 
-  const [floorPlans, setFloorPlans] = useState([]);
-  const [selectedFloorPlan, setSelectedFloorPlan] = useState(null);
-  const [navigationPoints, setNavigationPoints] = useState([]);
-  const [selectedPoint, setSelectedPoint] = useState(null);
-  const [destinationPoint, setDestinationPoint] = useState(null);
-  const [mode, setMode] = useState('view'); // view, add-point, navigate
-  const [directions, setDirections] = useState(null);
-  const [zoom, setZoom] = useState(1);
-  const [pointName, setPointName] = useState('');
-  const [pointType, setPointType] = useState('generic');
-  const [imageLoaded, setImageLoaded] = useState(false);
-  
+const FloorPlanNavigation = () => {
+  const [currentFloor, setCurrentFloor] = useState('G');
+  const [currentLocation, setCurrentLocation] = useState({ x: 100, y: 400 });
+  const [destination, setDestination] = useState(null);
+  const [route, setRoute] = useState([]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [floorPlanLoaded, setFloorPlanLoaded] = useState(false);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const imageRef = useRef(new Image());
-  
-  // Load floor plans on component mount
-  useEffect(() => {
-    const loadedFloorPlans = navigationService.getFloorPlans();
-    setFloorPlans(loadedFloorPlans);
-    
-    if (loadedFloorPlans.length > 0) {
-      handleSelectFloorPlan(loadedFloorPlans[0].id);
-    }
-  }, []);
-  
-  // Update canvas when floor plan or points change
-  useEffect(() => {
-    if (selectedFloorPlan && imageLoaded) {
-      drawFloorPlan();
-    }
-  }, [selectedFloorPlan, navigationPoints, selectedPoint, destinationPoint, zoom, imageLoaded]);
-  
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const floorPlanId = navigationService.addFloorPlan({
-          image: event.target.result,
-          name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-          width: img.width,
-          height: img.height
-        });
-        
-        const updatedFloorPlans = navigationService.getFloorPlans();
-        setFloorPlans(updatedFloorPlans);
-        handleSelectFloorPlan(floorPlanId);
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
+  const imageRef = useRef(null);
+
+  // Available floor plans
+  const floors = [
+    { id: 'G', name: 'Ground Floor', image: '/floorplans/TTSH-1.jpg' },
+    { id: '1', name: '1st Floor', image: '/floorplans/TTSH-2.jpg' },
+    { id: '2', name: '2nd Floor', image: '/floorplans/TTSH-3.jpg' },
+    { id: '3', name: '3rd Floor', image: '/floorplans/TTSH-4.jpg' }
+  ];
+
+  // Predefined locations for each floor (you can expand this)
+  const floorLocations = {
+    'G': [
+      { id: 'main-entrance', name: 'Main Entrance', x: 100, y: 400 },
+      { id: 'reception', name: 'Reception', x: 200, y: 350 },
+      { id: 'emergency', name: 'Emergency', x: 150, y: 200 },
+      { id: 'pharmacy', name: 'Pharmacy', x: 300, y: 380 },
+      { id: 'cafeteria', name: 'Cafeteria', x: 250, y: 450 },
+      { id: 'elevator-g', name: 'Elevator', x: 350, y: 300 }
+    ],
+    '1': [
+      { id: 'cardiology', name: 'Cardiology', x: 200, y: 250 },
+      { id: 'radiology', name: 'Radiology', x: 400, y: 200 },
+      { id: 'laboratory', name: 'Laboratory', x: 300, y: 350 },
+      { id: 'elevator-1', name: 'Elevator', x: 350, y: 300 }
+    ],
+    '2': [
+      { id: 'surgery', name: 'Surgery', x: 250, y: 200 },
+      { id: 'icu', name: 'ICU', x: 350, y: 250 },
+      { id: 'elevator-2', name: 'Elevator', x: 350, y: 300 }
+    ],
+    '3': [
+      { id: 'maternity', name: 'Maternity', x: 200, y: 200 },
+      { id: 'pediatrics', name: 'Pediatrics', x: 300, y: 250 },
+      { id: 'elevator-3', name: 'Elevator', x: 350, y: 300 }
+    ]
   };
-  
-  const handleSelectFloorPlan = (floorPlanId) => {
-    const floorPlan = navigationService.getFloorPlan(floorPlanId);
-    setSelectedFloorPlan(floorPlan);
-    
-    const points = navigationService.getNavigationPoints(floorPlanId);
-    setNavigationPoints(points);
-    
-    setSelectedPoint(null);
-    setDestinationPoint(null);
-    setDirections(null);
-    
-    // Load the image
-    setImageLoaded(false);
-    imageRef.current = new Image();
-    imageRef.current.onload = () => {
-      setImageLoaded(true);
-    };
-    imageRef.current.src = floorPlan.image;
+
+  const getCurrentFloorImage = () => {
+    return floors.find(floor => floor.id === currentFloor)?.image;
   };
-  
-  const handleCanvasClick = (e) => {
-    if (!selectedFloorPlan || !canvasRef.current || !imageLoaded) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / zoom;
-    const y = (e.clientY - rect.top) / zoom;
-    
-    if (mode === 'add-point') {
-      // Add new navigation point
-      const pointId = navigationService.addNavigationPoint(selectedFloorPlan.id, {
-        x, y, name: pointName || `Point ${navigationPoints.length + 1}`, type: pointType
-      });
-      
-      const updatedPoints = navigationService.getNavigationPoints(selectedFloorPlan.id);
-      setNavigationPoints(updatedPoints);
-      setPointName('');
-      
-      // Connect to selected point if exists
-      if (selectedPoint) {
-        navigationService.connectPoints(selectedPoint.id, pointId);
-        setSelectedPoint(updatedPoints.find(p => p.id === pointId));
-      }
-    } else if (mode === 'navigate') {
-      // Select point closest to click
-      const closestPoint = findClosestPoint(x, y);
-      if (closestPoint) {
-        if (!selectedPoint) {
-          setSelectedPoint(closestPoint);
-        } else if (!destinationPoint) {
-          setDestinationPoint(closestPoint);
-          
-          // Calculate directions
-          const directions = navigationService.getDirections(selectedPoint.id, closestPoint.id);
-          setDirections(directions);
-        } else {
-          // Reset and start new navigation
-          setSelectedPoint(closestPoint);
-          setDestinationPoint(null);
-          setDirections(null);
-        }
-      }
+
+  const getCurrentLocations = () => {
+    return floorLocations[currentFloor] || [];
+  };
+
+  // Generate route between two points
+  const generateRoute = (startLoc, endLoc) => {
+    if (!startLoc || !endLoc) return [];
+
+    // Simple pathfinding - create waypoints
+    const waypoints = [
+      startLoc,
+      { x: startLoc.x, y: endLoc.y }, // Turn corner
+      endLoc
+    ];
+
+    return waypoints;
+  };
+
+  const startNavigation = (destinationId) => {
+    const locations = getCurrentLocations();
+    const dest = locations.find(loc => loc.id === destinationId);
+    if (!dest) return;
+
+    setDestination(dest);
+    const currentLoc = { x: currentLocation.x, y: currentLocation.y };
+    const newRoute = generateRoute(currentLoc, dest);
+    setRoute(newRoute);
+    setCurrentStep(0);
+    setIsNavigating(true);
+  };
+
+  const nextStep = () => {
+    if (currentStep < route.length - 1) {
+      setCurrentStep(currentStep + 1);
+      setCurrentLocation(route[currentStep + 1]);
     } else {
-      // View mode - just select the point
-      const closestPoint = findClosestPoint(x, y);
-      setSelectedPoint(closestPoint);
-      
-      if (closestPoint && destinationPoint) {
-        // Recalculate directions if we have a destination
-        const directions = navigationService.getDirections(closestPoint.id, destinationPoint.id);
-        setDirections(directions);
-      } else {
-        setDestinationPoint(null);
-        setDirections(null);
-      }
+      setIsNavigating(false);
+      alert('You have arrived at your destination!');
     }
   };
-  
-  const findClosestPoint = (x, y) => {
-    const threshold = 20; // Clickable radius
-    let closest = null;
-    let minDistance = threshold;
-    
-    for (const point of navigationPoints) {
-      const distance = Math.sqrt(Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2));
-      if (distance < minDistance) {
-        minDistance = distance;
-        closest = point;
-      }
-    }
-    
-    return closest;
+
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    setRoute([]);
+    setCurrentStep(0);
+    setDestination(null);
   };
-  
-  const drawFloorPlan = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !selectedFloorPlan || !imageLoaded) return;
-    
-    const ctx = canvas.getContext('2d');
-    const img = imageRef.current;
-    
-    // Set canvas size based on image and zoom
-    canvas.width = img.width * zoom;
-    canvas.height = img.height * zoom;
-    
-    // Draw the floor plan
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    
-    // Draw connections between points
-    ctx.strokeStyle = '#3b82f6'; // Blue
-    ctx.lineWidth = 2 * zoom;
-    
-    for (const point of navigationPoints) {
-      for (const connectedId of point.connections) {
-        const connectedPoint = navigationPoints.find(p => p.id === connectedId);
-        if (connectedPoint) {
-          ctx.beginPath();
-          ctx.moveTo(point.x * zoom, point.y * zoom);
-          ctx.lineTo(connectedPoint.x * zoom, connectedPoint.y * zoom);
-          ctx.stroke();
-        }
-      }
-    }
-    
-    // Draw navigation path if available
-    if (selectedPoint && destinationPoint && directions) {
-      ctx.strokeStyle = '#10b981'; // Green
-      ctx.lineWidth = 3 * zoom;
-      
-      let path = navigationService.findPath(selectedPoint.id, destinationPoint.id);
-      if (path) {
-        for (let i = 0; i < path.length - 1; i++) {
-          const current = navigationPoints.find(p => p.id === path[i]);
-          const next = navigationPoints.find(p => p.id === path[i + 1]);
-          
-          if (current && next) {
-            ctx.beginPath();
-            ctx.moveTo(current.x * zoom, current.y * zoom);
-            ctx.lineTo(next.x * zoom, next.y * zoom);
-            ctx.stroke();
-          }
-        }
-      }
-    }
-    
-    // Draw navigation points
-    for (const point of navigationPoints) {
-      // Different colors based on point type
-      switch (point.type) {
-        case 'room':
-          ctx.fillStyle = '#3b82f6'; // Blue
-          break;
-        case 'elevator':
-          ctx.fillStyle = '#f59e0b'; // Amber
-          break;
-        case 'stairs':
-          ctx.fillStyle = '#10b981'; // Green
-          break;
-        default:
-          ctx.fillStyle = '#6b7280'; // Gray
-      }
-      
-      // Highlight selected points
-      if (point === selectedPoint) {
-        ctx.fillStyle = '#ef4444'; // Red
-      } else if (point === destinationPoint) {
-        ctx.fillStyle = '#8b5cf6'; // Purple
-      }
-      
-      // Draw point
-      ctx.beginPath();
-      ctx.arc(point.x * zoom, point.y * zoom, 8 * zoom, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Draw label
-      ctx.font = `${12 * zoom}px Arial`;
-      ctx.fillStyle = '#000000';
-      ctx.fillText(point.name, (point.x + 10) * zoom, (point.y + 5) * zoom);
+
+  const changeFloor = (floorId) => {
+    setCurrentFloor(floorId);
+    stopNavigation();
+    // Reset to elevator location when changing floors
+    const elevatorLoc = floorLocations[floorId]?.find(loc => loc.id.includes('elevator'));
+    if (elevatorLoc) {
+      setCurrentLocation({ x: elevatorLoc.x, y: elevatorLoc.y });
     }
   };
-  
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.1, 3));
+
+  // Handle floor plan image load
+  const handleImageLoad = () => {
+    setFloorPlanLoaded(true);
   };
-  
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.1, 0.5));
-  };
-  
-  const handleModeChange = (newMode) => {
-    setMode(newMode);
-    if (newMode !== 'navigate') {
-      setDestinationPoint(null);
-      setDirections(null);
-    }
-  };
-  
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2 flex items-center">
-          <Map className="w-5 h-5 mr-2" />
-          Hospital Navigation
-        </h2>
-        
-        <div className="flex flex-wrap gap-2 mb-4">
-          <button
-            onClick={() => fileInputRef.current.click()}
-            className="flex items-center space-x-1 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Upload Floor Plan</span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          
-          <button
-            onClick={() => handleModeChange('view')}
-            className={`px-3 py-1 rounded ${mode === 'view' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          >
-            View
-          </button>
-          <button
-            onClick={() => handleModeChange('add-point')}
-            className={`px-3 py-1 rounded ${mode === 'add-point' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          >
-            Add Points
-          </button>
-          <button
-            onClick={() => handleModeChange('navigate')}
-            className={`px-3 py-1 rounded ${mode === 'navigate' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-          >
-            Navigate
-          </button>
-          
-          <div className="ml-auto flex items-center space-x-1">
-            <button
-              onClick={handleZoomOut}
-              className="p-1 rounded bg-gray-200 hover:bg-gray-300"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <span className="text-sm">{Math.round(zoom * 100)}%</span>
-            <button
-              onClick={handleZoomIn}
-              className="p-1 rounded bg-gray-200 hover:bg-gray-300"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-        
-        {floorPlans.length > 0 && (
-          <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
-            {floorPlans.map(floorPlan => (
-              <button
-                key={floorPlan.id}
-                onClick={() => handleSelectFloorPlan(floorPlan.id)}
-                className={`px-3 py-1 rounded whitespace-nowrap ${
-                  selectedFloorPlan?.id === floorPlan.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                {floorPlan.name}
-              </button>
-            ))}
-          </div>
-        )}
-        
-        {mode === 'add-point' && (
-          <div className="flex space-x-2 mb-4">
-            <input
-              type="text"
-              value={pointName}
-              onChange={(e) => setPointName(e.target.value)}
-              placeholder="Point name"
-              className="border border-gray-300 rounded px-2 py-1 flex-grow"
-            />
-            <select
-              value={pointType}
-              onChange={(e) => setPointType(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1"
-            >
-              <option value="generic">Generic</option>
-              <option value="room">Room</option>
-              <option value="elevator">Elevator</option>
-              <option value="stairs">Stairs</option>
-            </select>
-          </div>
-        )}
-      </div>
-      
-      <div className="relative border border-gray-300 rounded overflow-hidden" style={{ height: '500px' }}>
-        {selectedFloorPlan ? (
-          <div className="overflow-auto h-full">
-            {!imageLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                <p className="text-gray-500">Loading floor plan...</p>
+    <div className="max-w-7xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-6 flex items-center">
+        <Navigation className="w-6 h-6 mr-2" />
+        Hospital Floor Plan Navigation
+      </h2>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Floor Plan Display */}
+        <div className="lg:col-span-3">
+          <div className="bg-gray-100 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                {floors.find(f => f.id === currentFloor)?.name}
+              </h3>
+              
+              {/* Floor Selector */}
+              <div className="flex items-center space-x-2">
+                <Building className="w-5 h-5" />
+                <select
+                  value={currentFloor}
+                  onChange={(e) => changeFloor(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-1"
+                >
+                  {floors.map(floor => (
+                    <option key={floor.id} value={floor.id}>
+                      {floor.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
-            <canvas
-              ref={canvasRef}
-              onClick={handleCanvasClick}
-              className="cursor-pointer"
-            />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full bg-gray-100">
-            <p className="text-gray-500">No floor plan selected. Please select a floor plan.</p>
-          </div>
-        )}
-      </div>
-      
-      {mode === 'navigate' && (
-        <div className="mt-4">
-          <h3 className="font-medium text-gray-900 mb-2">Navigation</h3>
-          
-          <div className="flex space-x-4 mb-2">
-            <div>
-              <p className="text-sm text-gray-500">Start Point</p>
-              <p className="font-medium">{selectedPoint?.name || 'Not selected'}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Destination</p>
-              <p className="font-medium">{destinationPoint?.name || 'Not selected'}</p>
+
+            <div className="relative bg-white border-2 border-gray-300 rounded-lg overflow-hidden" style={{ height: '600px' }}>
+              {/* Floor Plan Image */}
+              <img
+                ref={imageRef}
+                src={getCurrentFloorImage()}
+                alt={`Floor plan for ${currentFloor}`}
+                className="w-full h-full object-contain"
+                onLoad={handleImageLoad}
+                style={{ maxWidth: '100%', maxHeight: '100%' }}
+              />
+
+              {/* Overlay for locations and navigation */}
+              {floorPlanLoaded && (
+                <div className="absolute inset-0">
+                  {/* Location markers */}
+                  {getCurrentLocations().map((location) => (
+                    <div
+                      key={location.id}
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+                      style={{ 
+                        left: `${(location.x / 500) * 100}%`, 
+                        top: `${(location.y / 600) * 100}%` 
+                      }}
+                      onClick={() => startNavigation(location.id)}
+                    >
+                      <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg hover:bg-blue-600 transition-colors">
+                        {location.name}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Route visualization */}
+                  {route.length > 0 && (
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                      {route.map((point, index) => {
+                        if (index === route.length - 1) return null;
+                        const nextPoint = route[index + 1];
+                        return (
+                          <line
+                            key={index}
+                            x1={`${(point.x / 500) * 100}%`}
+                            y1={`${(point.y / 600) * 100}%`}
+                            x2={`${(nextPoint.x / 500) * 100}%`}
+                            y2={`${(nextPoint.y / 600) * 100}%`}
+                            stroke={index <= currentStep ? "#10B981" : "#D1D5DB"}
+                            strokeWidth="3"
+                            strokeDasharray={index <= currentStep ? "0" : "5,5"}
+                          />
+                        );
+                      })}
+                      
+                      {/* Route points */}
+                      {route.map((point, index) => (
+                        <circle
+                          key={index}
+                          cx={`${(point.x / 500) * 100}%`}
+                          cy={`${(point.y / 600) * 100}%`}
+                          r="6"
+                          fill={index <= currentStep ? "#10B981" : "#D1D5DB"}
+                          stroke="#fff"
+                          strokeWidth="2"
+                        />
+                      ))}
+                    </svg>
+                  )}
+
+                  {/* Current location marker */}
+                  <div
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20"
+                    style={{ 
+                      left: `${(currentLocation.x / 500) * 100}%`, 
+                      top: `${(currentLocation.y / 600) * 100}%` 
+                    }}
+                  >
+                    <div className="relative">
+                      <MapPin className="w-6 h-6 text-red-500 animate-bounce" />
+                      <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                        You are here
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Destination marker */}
+                  {destination && (
+                    <div
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20"
+                      style={{ 
+                        left: `${(destination.x / 500) * 100}%`, 
+                        top: `${(destination.y / 600) * 100}%` 
+                      }}
+                    >
+                      <Target className="w-6 h-6 text-green-500" />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-          
-          {directions && directions.length > 0 ? (
-            <div className="border border-gray-200 rounded p-3 bg-gray-50">
-              <h4 className="font-medium mb-2 flex items-center">
-                <Navigation className="w-4 h-4 mr-1 text-blue-600" />
-                Directions
-              </h4>
-              <ol className="list-decimal pl-5 space-y-1">
-                {directions.map((step, index) => (
-                  <li key={index} className="text-sm">
-                    {step.instruction}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : selectedPoint && !destinationPoint ? (
-            <p className="text-sm text-blue-600">Now select a destination point</p>
-          ) : selectedPoint && destinationPoint && (!directions || directions.length === 0) ? (
-            <p className="text-sm text-red-600">No path found between these points</p>
-          ) : (
-            <p className="text-sm text-gray-500">Select a starting point on the map</p>
-          )}
         </div>
-      )}
+
+        {/* Navigation Panel */}
+        <div className="space-y-6">
+          {/* Floor Navigation */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Floor Navigation</h3>
+            <div className="space-y-2">
+              {floors.map((floor) => (
+                <button
+                  key={floor.id}
+                  onClick={() => changeFloor(floor.id)}
+                  className={`w-full text-left px-3 py-2 rounded transition-colors ${
+                    currentFloor === floor.id 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-white border border-gray-200 hover:bg-blue-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{floor.name}</span>
+                    {currentFloor === floor.id && <Building className="w-4 h-4" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Destination Selection */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Destinations on {floors.find(f => f.id === currentFloor)?.name}</h3>
+            <div className="space-y-2">
+              {getCurrentLocations().map((location) => (
+                <button
+                  key={location.id}
+                  onClick={() => startNavigation(location.id)}
+                  className="w-full text-left px-3 py-2 bg-white border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                >
+                  {location.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Navigation Instructions */}
+          {isNavigating && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <Navigation className="w-5 h-5 mr-2" />
+                Navigation to {destination?.name}
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Step {currentStep + 1} of {route.length}</span>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Clock className="w-4 h-4 mr-1" />
+                    ~{Math.max(1, route.length - currentStep)} min
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded p-3">
+                  <p className="font-medium">
+                    {currentStep === 0 && "Starting from your current location"}
+                    {currentStep > 0 && currentStep < route.length - 1 && "Continue following the highlighted path"}
+                    {currentStep === route.length - 1 && `You have arrived at ${destination?.name}!`}
+                  </p>
+                </div>
+
+                <div className="flex space-x-2">
+                  {currentStep < route.length - 1 ? (
+                    <button
+                      onClick={nextStep}
+                      className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+                    >
+                      Next Step
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopNavigation}
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700"
+                    >
+                      Finish
+                    </button>
+                  )}
+                  <button
+                    onClick={stopNavigation}
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Current Status */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Current Status</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Current Floor:</span>
+                <span className="font-medium">{floors.find(f => f.id === currentFloor)?.name}</span>
+              </div>
+              {destination && (
+                <div className="flex justify-between">
+                  <span>Destination:</span>
+                  <span className="font-medium">{destination.name}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>Status:</span>
+                <span className={`font-medium ${isNavigating ? 'text-blue-600' : 'text-gray-600'}`}>
+                  {isNavigating ? 'Navigating' : 'Ready'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

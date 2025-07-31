@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import StaffDashboard from './components/StaffDashboard';
 import KioskInterface from './components/KioskInterface';
 import MobileInterface from './components/MobileInterface';
-import NavigationPage from './components/NavigationPage';
+import FloorPlanNavigation from './components/FloorPlanNavigation';
 import useEnv from './hooks/useEnv';
 
 function App() {
@@ -40,7 +40,7 @@ function App() {
           <Route path="/" element={<KioskInterface />} />
           <Route path="/mobile" element={<MobileInterface />} /> 
           <Route path="/dashboard" element={<StaffDashboard />} />
-          <Route path="/navigation" element={<NavigationPage />} />
+          <Route path="/navigation" element={<FloorPlanNavigation />} />
         </Routes>
       </div>
     </Router>

@@ -1,388 +1,271 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Map, Navigation, MapPin, CornerDownLeft, Compass, Loader, Layers } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Navigation, Target, Clock } from 'lucide-react';
 
-import dynamoService from '../services/dynamoService';
-import './HospitalNavigation.css';
-
-const HospitalNavigation = ({ onBack, userId }) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [currentLocation, setCurrentLocation] = useState('reception');
+const HospitalNavigation = () => {
+  const [currentLocation, setCurrentLocation] = useState({ x: 50, y: 300 }); // Starting point
   const [destination, setDestination] = useState(null);
-  const [navigationData, setNavigationData] = useState(null);
-  const [currentFloor, setCurrentFloor] = useState('G');
-  
-  // Floor plan images
-  const floorPlans = {
-    'G': '/floorplans/ground-floor.svg',
-    '1': '/floorplans/first-floor.svg',
-    '2': '/floorplans/second-floor.svg',
-    '3': '/floorplans/third-floor.svg'
+  const [route, setRoute] = useState([]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  // Hospital floor plan locations
+  const locations = {
+    'main-entrance': { x: 50, y: 300, name: 'Main Entrance' },
+    'reception': { x: 150, y: 300, name: 'Reception' },
+    'emergency': { x: 100, y: 100, name: 'Emergency Department' },
+    'radiology': { x: 400, y: 150, name: 'Radiology' },
+    'pharmacy': { x: 300, y: 400, name: 'Pharmacy' },
+    'cardiology': { x: 500, y: 200, name: 'Cardiology' },
+    'laboratory': { x: 350, y: 300, name: 'Laboratory' },
+    'cafeteria': { x: 200, y: 450, name: 'Cafeteria' },
+    'elevator-1': { x: 250, y: 200, name: 'Elevator 1' },
+    'elevator-2': { x: 450, y: 350, name: 'Elevator 2' }
   };
-  
-  // Destinations with coordinates (x, y as percentages of the image)
-  const [availableDestinations] = useState([
-    { id: 'reception', name: 'Main Reception', floor: 'G', coordinates: [50, 50] },
-    { id: 'emergency', name: 'Emergency Department', floor: 'G', coordinates: [70, 30] },
-    { id: 'radiology', name: 'Radiology', floor: '1', coordinates: [60, 40] },
-    { id: 'cardiology', name: 'Cardiology Department', floor: '2', coordinates: [55, 45] },
-    { id: 'cafeteria', name: 'Cafeteria', floor: 'G', coordinates: [30, 70] },
-    { id: 'pharmacy', name: 'Pharmacy', floor: 'G', coordinates: [80, 60] },
-    { id: 'laboratory', name: 'Laboratory', floor: '1', coordinates: [40, 50] },
-    { id: 'pediatrics', name: 'Pediatrics', floor: '3', coordinates: [60, 60] }
-  ]);
-  
-  const navigationInterval = useRef(null);
-  const userMarkerRef = useRef({ x: 50, y: 50 }); // Start at center
 
-  // Get navigation data when destination changes
-  useEffect(() => {
-    if (!destination) return;
+  // Generate route between two points
+  const generateRoute = (start, end) => {
+    const startPos = locations[start] || currentLocation;
+    const endPos = locations[end];
     
-    const getNavData = async () => {
-      try {
-        setLoading(true);
-        
-        // Get selected destination details
-        const destObj = availableDestinations.find(d => d.id === destination);
-        if (!destObj) {
-          setError('Destination not found');
-          setLoading(false);
-          return;
-        }
-        
-        // Switch to destination floor if needed
-        if (currentFloor !== destObj.floor) {
-          setCurrentFloor(destObj.floor);
-        }
-        
-        // Calculate route with AI-generated instructions
-        const route = await calculateSimpleRoute(
-          userMarkerRef.current, 
-          {
-            x: destObj.coordinates[0],
-            y: destObj.coordinates[1]
-          },
-          destObj.name
-        );
-        
-        // Update navigation data
-        setNavigationData({
-          remainingDistance: route.distance,
-          estimatedTime: Math.round(route.distance / 5), // 5 meters per second
-          currentStep: route.instructions[0],
-          instructions: route.instructions
-        });
-        
-        // Update user location in database
-        await dynamoService.updateUserLocation({
-          userId,
-          currentLocation,
-          destination
-        });
-        
-        setLoading(false);
-        
-        // Start simulated navigation updates
-        startNavigationUpdates(route);
-        
-      } catch (err) {
-        console.error('Failed to load navigation data:', err);
-        setError('Failed to load navigation data');
-        setLoading(false);
-      }
-    };
-    
-    getNavData();
-    
-    return () => {
-      if (navigationInterval.current) {
-        clearInterval(navigationInterval.current);
-      }
-    };
-  }, [destination, currentLocation, userId, availableDestinations, currentFloor]);
+    if (!endPos) return [];
 
-  // Calculate a route between two points with AI-generated instructions
-  const calculateSimpleRoute = async (start, end, destName) => {
-    // Calculate distance (using percentage units)
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const distance = Math.round(Math.sqrt(dx * dx + dy * dy) * 2); // Scale to meters
-    
-    // Default instructions in case AI generation fails
-    let instructions = [
-      `Head ${Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : (dy > 0 ? 'south' : 'north')} from your current location`,
-      'Continue straight ahead',
-      'Your destination will be ahead'
+    // Simple pathfinding - create waypoints
+    const waypoints = [
+      startPos,
+      { x: startPos.x, y: endPos.y }, // Turn corner
+      endPos
     ];
-    
-    // AI-generated instructions removed
-    console.log('Using default navigation instructions for:', destName);
-    
-    return {
-      distance,
-      duration: Math.round(distance / 5), // 5 meters per second
-      instructions,
-      path: [
-        { x: start.x, y: start.y },
-        { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
-        { x: end.x, y: end.y }
-      ]
-    };
+
+    return waypoints;
   };
 
-  const startNavigationUpdates = (routeData) => {
-    // Clear any existing interval
-    if (navigationInterval.current) {
-      clearInterval(navigationInterval.current);
+  const startNavigation = (destinationKey) => {
+    const dest = locations[destinationKey];
+    if (!dest) return;
+
+    setDestination(dest);
+    const newRoute = generateRoute('current', destinationKey);
+    setRoute(newRoute);
+    setCurrentStep(0);
+    setIsNavigating(true);
+  };
+
+  const nextStep = () => {
+    if (currentStep < route.length - 1) {
+      setCurrentStep(currentStep + 1);
+      setCurrentLocation(route[currentStep + 1]);
+    } else {
+      setIsNavigating(false);
+      alert('You have arrived at your destination!');
     }
-    
-    let stepIndex = 0;
-    let progress = 0;
-    let pathIndex = 0;
-    
-    // Simulate navigation updates
-    navigationInterval.current = setInterval(() => {
-      // Update progress
-      progress += 0.05;
-      
-      if (progress >= 1) {
-        // Move to next instruction
-        stepIndex = Math.min(stepIndex + 1, routeData.instructions.length - 1);
-        pathIndex = Math.min(pathIndex + 1, routeData.path.length - 2);
-        progress = 0;
-      }
-      
-      // Calculate remaining distance and time
-      const remainingDistance = Math.max(0, routeData.distance * (1 - (stepIndex / routeData.instructions.length) - (progress / routeData.instructions.length)));
-      const remainingTime = Math.max(0, routeData.duration * (1 - (stepIndex / routeData.instructions.length) - (progress / routeData.instructions.length)));
-      
-      // Update navigation data
-      setNavigationData(prev => ({
-        ...prev,
-        remainingDistance: Math.round(remainingDistance),
-        estimatedTime: Math.round(remainingTime),
-        currentStep: routeData.instructions[stepIndex]
-      }));
-      
-      // Update user marker position along the route
-      const currentPath = routeData.path[pathIndex];
-      const nextPath = routeData.path[pathIndex + 1];
-      
-      if (currentPath && nextPath) {
-        userMarkerRef.current = {
-          x: currentPath.x + (nextPath.x - currentPath.x) * progress,
-          y: currentPath.y + (nextPath.y - currentPath.y) * progress
-        };
-      }
-      
-      // End navigation when destination is reached
-      if (stepIndex === routeData.instructions.length - 1 && progress > 0.9) {
-        clearInterval(navigationInterval.current);
-        setNavigationData(prev => ({
-          ...prev,
-          remainingDistance: 0,
-          estimatedTime: 0,
-          currentStep: 'You have arrived at your destination'
-        }));
-      }
-    }, 1000);
   };
 
-  const handleSelectDestination = (destId) => {
-    setDestination(destId);
-  };
-
-  const handleFloorChange = (floor) => {
-    setCurrentFloor(floor);
-  };
-
-  // Render user marker and destination on the floor plan
-  const renderMarkers = () => {
-    const destObj = destination ? availableDestinations.find(d => d.id === destination) : null;
-    
-    return (
-      <>
-        {/* User marker */}
-        <div 
-          className="absolute w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-md transform -translate-x-1/2 -translate-y-1/2 z-20"
-          style={{ 
-            left: `${userMarkerRef.current.x}%`, 
-            top: `${userMarkerRef.current.y}%`,
-            animation: 'pulse 2s infinite'
-          }}
-        />
-        
-        {/* Destination marker (if on current floor) */}
-        {destObj && destObj.floor === currentFloor && (
-          <div 
-            className="absolute w-8 h-8 transform -translate-x-1/2 -translate-y-1/2 z-10"
-            style={{ 
-              left: `${destObj.coordinates[0]}%`, 
-              top: `${destObj.coordinates[1]}%` 
-            }}
-          >
-            <div className="text-red-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3" fill="white"></circle>
-              </svg>
-            </div>
-          </div>
-        )}
-        
-        {/* Path line (if on current floor) */}
-        {destObj && destObj.floor === currentFloor && destination && (
-          <svg className="absolute inset-0 w-full h-full z-0" style={{ pointerEvents: 'none' }}>
-            <defs>
-              <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
-              </marker>
-            </defs>
-            <path 
-              d={`M ${userMarkerRef.current.x},${userMarkerRef.current.y} L ${destObj.coordinates[0]},${destObj.coordinates[1]}`}
-              stroke="#3b82f6" 
-              strokeWidth="3" 
-              strokeDasharray="5,5" 
-              fill="none"
-              markerEnd="url(#arrowhead)"
-            />
-          </svg>
-        )}
-      </>
-    );
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    setRoute([]);
+    setCurrentStep(0);
+    setDestination(null);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="text-blue-600 hover:text-blue-700 font-medium"
-        >
-          ← Back
-        </button>
-        <h2 className="text-xl font-semibold">Hospital Navigation</h2>
-        <div></div>
-      </div>
+    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-6 flex items-center">
+        <Navigation className="w-6 h-6 mr-2" />
+        Hospital Navigation
+      </h2>
 
-      {error ? (
-        <div className="bg-red-50 text-red-700 p-4 rounded-lg">
-          {error}
-        </div>
-      ) : (
-        <>
-          {/* Floor plan view */}
-          <div className="bg-blue-50 rounded-lg border border-blue-200 h-64 relative overflow-hidden">
-            {loading ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-30">
-                <div className="flex flex-col items-center">
-                  <Loader className="w-8 h-8 text-blue-500 animate-spin mb-2" />
-                  <p className="text-blue-700">Loading navigation...</p>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Floor plan image */}
-                <img 
-                  src={floorPlans[currentFloor]} 
-                  alt={`Floor ${currentFloor}`}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback for missing images
-                    e.target.onerror = null;
-                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 100 100"><rect width="100%" height="100%" fill="%23f0f9ff"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2360a5fa" text-anchor="middle">Floor ${currentFloor}</text></svg>'.replace('${currentFloor}', currentFloor);
-                  }}
-                />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Floor Plan */}
+        <div className="lg:col-span-2">
+          <div className="bg-gray-100 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4">Floor Plan</h3>
+            <div className="relative bg-white border-2 border-gray-300 rounded-lg" style={{ height: '500px', width: '600px' }}>
+              
+              {/* Floor plan background elements */}
+              <div className="absolute inset-0">
+                {/* Corridors */}
+                <div className="absolute bg-gray-200" style={{ left: '40px', top: '290px', width: '520px', height: '20px' }}></div>
+                <div className="absolute bg-gray-200" style={{ left: '240px', top: '90px', width: '20px', height: '220px' }}></div>
+                <div className="absolute bg-gray-200" style={{ left: '440px', top: '140px', width: '20px', height: '220px' }}></div>
                 
-                {/* Markers and path */}
-                {renderMarkers()}
-                
-                {/* Floor selector */}
-                <div className="absolute top-2 right-2 bg-white rounded-md shadow-md z-10">
-                  <div className="p-1">
-                    <Layers className="w-4 h-4 text-gray-600 mx-auto" />
+                {/* Rooms */}
+                {Object.entries(locations).map(([key, location]) => (
+                  <div
+                    key={key}
+                    className="absolute bg-blue-100 border border-blue-300 rounded flex items-center justify-center text-xs font-medium cursor-pointer hover:bg-blue-200"
+                    style={{
+                      left: `${location.x - 25}px`,
+                      top: `${location.y - 15}px`,
+                      width: '50px',
+                      height: '30px'
+                    }}
+                    onClick={() => startNavigation(key)}
+                  >
+                    {location.name.split(' ')[0]}
                   </div>
-                  {['G', '1', '2', '3'].map(floor => (
-                    <button
-                      key={floor}
-                      onClick={() => handleFloorChange(floor)}
-                      className={`w-8 h-8 flex items-center justify-center ${
-                        currentFloor === floor 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-white text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      {floor}
-                    </button>
+                ))}
+              </div>
+
+              {/* Route visualization */}
+              {route.length > 0 && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                  {route.map((point, index) => {
+                    if (index === route.length - 1) return null;
+                    const nextPoint = route[index + 1];
+                    return (
+                      <line
+                        key={index}
+                        x1={point.x}
+                        y1={point.y}
+                        x2={nextPoint.x}
+                        y2={nextPoint.y}
+                        stroke={index <= currentStep ? "#10B981" : "#D1D5DB"}
+                        strokeWidth="3"
+                        strokeDasharray={index <= currentStep ? "0" : "5,5"}
+                      />
+                    );
+                  })}
+                  
+                  {/* Route points */}
+                  {route.map((point, index) => (
+                    <circle
+                      key={index}
+                      cx={point.x}
+                      cy={point.y}
+                      r="6"
+                      fill={index <= currentStep ? "#10B981" : "#D1D5DB"}
+                      stroke="#fff"
+                      strokeWidth="2"
+                    />
                   ))}
-                </div>
-              </>
-            )}
-          </div>
-          
-          {/* Navigation info */}
-          {navigationData && destination && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center mb-3">
-                <Navigation className="w-5 h-5 text-blue-600 mr-2" />
-                <h3 className="font-medium">Navigation to {availableDestinations.find(d => d.id === destination)?.name}</h3>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="bg-blue-50 p-3 rounded-lg">
-                  <p className="text-sm text-blue-700">Distance</p>
-                  <p className="text-xl font-semibold">{navigationData.remainingDistance || 0}m</p>
-                </div>
-                <div className="bg-green-50 p-3 rounded-lg">
-                  <p className="text-sm text-green-700">Est. Time</p>
-                  <p className="text-xl font-semibold">{navigationData.estimatedTime || 0}s</p>
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-sm font-medium text-gray-700 mb-1">Current Direction:</p>
-                <div className="flex items-center">
-                  <CornerDownLeft className="w-5 h-5 text-gray-600 mr-2" />
-                  <p className="text-gray-800">{navigationData.currentStep || 'Calculating route...'}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Destination selector */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="font-medium mb-3">Select Destination</h3>
-            
-            <div className="grid grid-cols-1 gap-2">
-              {availableDestinations.map((dest) => (
-                <button
-                  key={dest.id}
-                  onClick={() => handleSelectDestination(dest.id)}
-                  className={`p-3 rounded-lg flex items-center justify-between ${
-                    destination === dest.id 
-                      ? 'bg-blue-100 border border-blue-300' 
-                      : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <MapPin className={`w-5 h-5 mr-2 ${destination === dest.id ? 'text-blue-600' : 'text-gray-500'}`} />
-                    <div>
-                      <p className={`font-medium ${destination === dest.id ? 'text-blue-800' : 'text-gray-800'}`}>
-                        {dest.name}
-                      </p>
-                      <p className="text-xs text-gray-500">Floor {dest.floor}</p>
-                    </div>
+                </svg>
+              )}
+
+              {/* Current location marker */}
+              <div
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
+                style={{ left: `${currentLocation.x}px`, top: `${currentLocation.y}px` }}
+              >
+                <div className="relative">
+                  <MapPin className="w-6 h-6 text-red-500 animate-bounce" />
+                  <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                    You are here
                   </div>
-                  {destination === dest.id && (
-                    <div className="bg-blue-600 rounded-full w-4 h-4"></div>
-                  )}
+                </div>
+              </div>
+
+              {/* Destination marker */}
+              {destination && (
+                <div
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
+                  style={{ left: `${destination.x}px`, top: `${destination.y}px` }}
+                >
+                  <Target className="w-6 h-6 text-green-500" />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Panel */}
+        <div className="space-y-6">
+          {/* Destination Selection */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Select Destination</h3>
+            <div className="space-y-2">
+              {Object.entries(locations).map(([key, location]) => (
+                <button
+                  key={key}
+                  onClick={() => startNavigation(key)}
+                  className="w-full text-left px-3 py-2 bg-white border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                >
+                  {location.name}
                 </button>
               ))}
             </div>
           </div>
-        </>
-      )}
+
+          {/* Navigation Instructions */}
+          {isNavigating && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <Navigation className="w-5 h-5 mr-2" />
+                Navigation to {destination?.name}
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Step {currentStep + 1} of {route.length}</span>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Clock className="w-4 h-4 mr-1" />
+                    ~{Math.max(1, route.length - currentStep)} min
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded p-3">
+                  <p className="font-medium">
+                    {currentStep === 0 && "Starting from your current location"}
+                    {currentStep > 0 && currentStep < route.length - 1 && "Continue straight ahead"}
+                    {currentStep === route.length - 1 && `You have arrived at ${destination?.name}!`}
+                  </p>
+                </div>
+
+                <div className="flex space-x-2">
+                  {currentStep < route.length - 1 ? (
+                    <button
+                      onClick={nextStep}
+                      className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+                    >
+                      Next Step
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopNavigation}
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700"
+                    >
+                      Finish
+                    </button>
+                  )}
+                  <button
+                    onClick={stopNavigation}
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Current Status */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Current Status</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Current Location:</span>
+                <span className="font-medium">
+                  {Object.values(locations).find(loc => 
+                    Math.abs(loc.x - currentLocation.x) < 10 && 
+                    Math.abs(loc.y - currentLocation.y) < 10
+                  )?.name || 'Moving...'}
+                </span>
+              </div>
+              {destination && (
+                <div className="flex justify-between">
+                  <span>Destination:</span>
+                  <span className="font-medium">{destination.name}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>Status:</span>
+                <span className={`font-medium ${isNavigating ? 'text-blue-600' : 'text-gray-600'}`}>
+                  {isNavigating ? 'Navigating' : 'Ready'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
