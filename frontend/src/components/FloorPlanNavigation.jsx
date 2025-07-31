@@ -3,7 +3,7 @@ import { MapPin, Navigation, Target, Clock, Building, ChevronUp, ChevronDown } f
 
 const FloorPlanNavigation = () => {
   const [currentFloor, setCurrentFloor] = useState('G');
-  const [currentLocation, setCurrentLocation] = useState({ x: 150, y: 155 });
+  const [currentLocation, setCurrentLocation] = useState({ x: 200, y: 200 });
   const [destination, setDestination] = useState(null);
   const [route, setRoute] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -25,6 +25,7 @@ const FloorPlanNavigation = () => {
     'G': [
       { id: 'ward-entrance', name: 'Ward Entrance', x: 150, y: 155 },
       { id: 'clinic-1A', name: 'Clinic 1A', x: 100, y: 425 },
+      { id:'registration', name: 'Registration', x: 200, y: 200 },
       { id: 'clinic-1B', name: 'Clinic 1B', x: 200, y: 425 },
       { id: 'kopitiam', name: 'Kopitiam', x: 105, y: 260 },
       { id: 'children-eye-centre', name: 'Children Eye Centre', x: 220, y: 250 },
