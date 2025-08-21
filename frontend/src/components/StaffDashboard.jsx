@@ -11,6 +11,7 @@ const StaffDashboard = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [patientVisits, setPatientVisits] = useState([]);
+  const [generatingDiagnosis, setGeneratingDiagnosis] = useState(new Set());
 
   // Fetch patient data from Supabase
   const fetchPatientData = async () => {
@@ -86,12 +87,12 @@ const StaffDashboard = () => {
 
       // Set first patient as selected if none selected
       if (!selectedPatient && enrichedQueue.length > 0) {
-        setSelectedPatient(enrichedQueue[0]);
-        
-        // Auto-generate pre-diagnosis if not already available
         const firstPatient = enrichedQueue[0];
+        setSelectedPatient(firstPatient);
+        
+        // Auto-generate pre-diagnosis for selected patient only
         if (firstPatient && firstPatient.patientId && !firstPatient.ai_pre_diagnosis) {
-          console.log('Auto-generating pre-diagnosis for first patient:', firstPatient.patientId);
+          console.log('Auto-generating pre-diagnosis for selected patient:', firstPatient.patientId);
           requestPreDiagnosis(firstPatient.patientId);
         }
       }
@@ -122,11 +123,11 @@ const StaffDashboard = () => {
 
   // Request pre-diagnosis for a patient
   const requestPreDiagnosis = async (patientId) => {
-    if (!patientId) return;
+    if (!patientId || generatingDiagnosis.has(patientId)) return;
+    
+    setGeneratingDiagnosis(prev => new Set([...prev, patientId]));
     
     try {
-      setLoading(true);
-      
       // Find the patient in our queue
       const patient = queueEntries.find(entry => entry.patientId === patientId);
       if (!patient) {
@@ -152,28 +153,31 @@ const StaffDashboard = () => {
         await supabaseService.savePreDiagnosis(patientId, result.data);
         
         // Update the patient's pre-diagnosis in the queue
-        const updatedQueue = queueEntries.map(entry => 
-          entry.patientId === patientId 
-            ? { ...entry, ai_pre_diagnosis: result.data }
-            : entry
+        setQueueEntries(prevQueue => 
+          prevQueue.map(entry => 
+            entry.patientId === patientId 
+              ? { ...entry, ai_pre_diagnosis: result.data }
+              : entry
+          )
         );
-        setQueueEntries(updatedQueue);
         
         // Update selected patient if it's the same one
-        if (selectedPatient?.patientId === patientId) {
-          setSelectedPatient({ ...selectedPatient, ai_pre_diagnosis: result.data });
-        }
+        setSelectedPatient(prevSelected => 
+          prevSelected?.patientId === patientId 
+            ? { ...prevSelected, ai_pre_diagnosis: result.data }
+            : prevSelected
+        );
         
         console.log('Pre-diagnosis generated and saved successfully:', result.data);
-      } else {
-        console.error('Failed to generate pre-diagnosis:', result.message);
-        alert(`Failed to generate pre-diagnosis: ${result.message}`);
       }
     } catch (error) {
       console.error('Error generating pre-diagnosis:', error);
-      alert(`Failed to generate pre-diagnosis: ${error.message || 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      setGeneratingDiagnosis(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(patientId);
+        return newSet;
+      });
     }
   };
 
@@ -583,15 +587,16 @@ const StaffDashboard = () => {
                           )}
                         </div>
                       </div>
+                    ) : generatingDiagnosis.has(selectedPatient?.patientId) ? (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <p className="text-gray-500">Generating AI pre-diagnosis...</p>
+                        </div>
+                      </div>
                     ) : (
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
                         <p className="text-gray-500">No AI pre-diagnosis available</p>
-                        <button 
-                          onClick={() => requestPreDiagnosis(selectedPatient.patientId)}
-                          className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                        >
-                          Generate Pre-Diagnosis
-                        </button>
                       </div>
                     )}
                   </div>

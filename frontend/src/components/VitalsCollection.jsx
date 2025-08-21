@@ -101,7 +101,7 @@ const VitalsCollection = ({ patient, onComplete }) => {
         user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
       }));
       
-      window.location.href = '/dashboard';
+      window.location.href = '/navigation';
       // No else clause - always proceed with saving
       
       setSuccess(true);
