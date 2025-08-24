@@ -12,36 +12,38 @@ const PreparationPrompts = () => {
     return sessionStorage.getItem('selectedLanguage') || 'en';
   });
 
-  const prompts = [
+  const getPrompts = () => [
     {
       id: 'symptoms',
-      title: 'Prepare Your Symptom Details',
-      message: 'Please think about when your symptoms started, how they feel, and what makes them better or worse. This will help the doctor understand your condition better.',
-      action: 'Think about your symptoms timeline',
+      title: getTranslation('symptomsTitle', language),
+      message: getTranslation('symptomsMsg', language),
+      action: getTranslation('symptomsTitle', language),
       icon: <FileText className="w-6 h-6" />
     },
     {
       id: 'medications',
-      title: 'Gather Your Medications',
-      message: 'If you have any medications, supplements, or medical devices with you, please have them ready to show the doctor. Include prescription bottles and any recent test results.',
-      action: 'Collect medications and documents',
+      title: getTranslation('medications', language),
+      message: getTranslation('medicationsMsg', language),
+      action: getTranslation('medications', language),
       icon: <FileText className="w-6 h-6" />
     },
     {
       id: 'photos',
-      title: 'Take Photos if Needed',
-      message: 'If you have any visible symptoms like rashes, swelling, or injuries, consider taking clear photos with your phone. This can help the doctor assess your condition.',
-      action: 'Take photos of visible symptoms',
+      title: getTranslation('photos', language),
+      message: getTranslation('photosMsg', language),
+      action: getTranslation('photos', language),
       icon: <Camera className="w-6 h-6" />
     },
     {
       id: 'questions',
-      title: 'Prepare Your Questions',
-      message: 'Think of any questions you want to ask the doctor. Write them down if needed so you don\'t forget during your consultation.',
-      action: 'List your questions',
+      title: getTranslation('questions', language),
+      message: getTranslation('questionsMsg', language),
+      action: getTranslation('questions', language),
       icon: <FileText className="w-6 h-6" />
     }
   ];
+  
+  const prompts = getPrompts();
 
   const speakMessage = async (message) => {
     setSpeaking(true);
