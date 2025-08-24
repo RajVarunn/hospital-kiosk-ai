@@ -274,9 +274,18 @@ const supabaseService = {
         .from('patients')
         .select(`
           *,
-          vitals (*)
+          vitals (*, created_at)
         `)
         .order('created_at', { ascending: false });
+      
+      // Sort vitals by created_at desc to get latest first
+      if (data) {
+        data.forEach(patient => {
+          if (patient.vitals && patient.vitals.length > 0) {
+            patient.vitals.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          }
+        });
+      }
 
       if (error) throw error;
       return data || [];

@@ -3,9 +3,12 @@ import { Mic, Volume2, VolumeX, User, CreditCard, Calendar, CheckCircle } from '
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AvatarViewer from './AvatarViewer';
+import LanguageSelector from './LanguageSelector';
+import LanguageSelection from './LanguageSelection';
 import Webcam from 'react-webcam';
 import dynamoService from '../services/dynamoService';
 import supabaseService from '../services/supabaseService';
+import { getTranslation } from '../utils/translations';
 
 const videoConstraints = {
   width: 640,
@@ -14,6 +17,7 @@ const videoConstraints = {
 };
 
 const AIAvatarPatientRegistration = ({ onSubmit }) => {
+  const [showLanguageSelection, setShowLanguageSelection] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -24,19 +28,22 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
   const [mouthOpen, setMouthOpen] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [hasFinishedSpeaking, setHasFinishedSpeaking] = useState(false);
+  const [language, setLanguage] = useState('en');
 
   const hasSpokenRef = useRef(false);
   const webcamRef = useRef(null);
   const navigate = useNavigate();
 
-  const questions = [
-    { id: 'welcome', text: "Hello! I'm Elera... Let's get you registered.", field: 'nric', icon: CreditCard },
+  const getQuestions = () => [
+    { id: 'welcome', text: getTranslation('welcome', language), field: 'nric', icon: CreditCard },
     { id: 'name', text: "Please tell me your full name.", field: 'name', icon: User, validation: (v) => v.trim().length >= 2, errorMessage: "At least 2 characters." },
     { id: 'age', text: "How old are you?", field: 'age', icon: Calendar, validation: (v) => { const a = parseInt(v); return !isNaN(a) && a >= 1 && a <= 120; }, errorMessage: "Valid age 1–120" },
     { id: 'confirm', text: '', field: null, icon: CheckCircle },
-    { id: 'symptoms', text: "Please tell me what symptoms you're experiencing today.", field: 'symptoms', icon: CheckCircle },
+    { id: 'symptoms', text: getTranslation('symptoms', language), field: 'symptoms', icon: CheckCircle },
     { id: 'complete', text: "Registration complete!", icon: CheckCircle, field: null }
   ];
+  
+  const questions = getQuestions();
 
   const currentQuestion = questions[currentStep];
 
@@ -47,10 +54,11 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
       setHasFinishedSpeaking(false);
       setAvatarExpression('speaking');
       
-      // Use OpenAI's TTS API instead of AWS Polly
+      // Use OpenAI's TTS API with language support
       const res = await axios.post('/api/openai-tts/tts', { 
         text, 
-        voice: 'nova' // Options: alloy, echo, fable, onyx, nova, shimmer
+        voice: language === 'zh' ? 'alloy' : 'nova',
+        language: language === 'zh' ? 'zh' : 'en'
       }, { responseType: 'blob' });
       
       const audioBlob = new Blob([res.data], { type: 'audio/mpeg' });
@@ -131,6 +139,7 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
+        formData.append('language', language === 'zh' ? 'zh-CN' : 'en-US');
         
         try {
           const response = await axios.post('/api/whisper/transcribe', formData);
@@ -229,33 +238,42 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
       
       // Handle confirmation step
       if (currentQuestion.id === 'confirm') {
-        console.log('Handling confirmation step');
+        console.log('Handling confirmation step with transcript:', speechTranscript);
         
-        // Accept any response as confirmation
-        setAvatarExpression('happy');
-        setError('');
-        setTranscript("Yes");
+        // Check if user confirmed (yes, ok, correct, etc.)
+        const confirmWords = language === 'zh' 
+          ? ['是', '对', '正确', '好', '确认', '是的']
+          : ['yes', 'yeah', 'yep', 'correct', 'right', 'ok', 'okay', 'confirm'];
         
-        // Wait a moment to show the confirmation was received
-        setTimeout(async () => {
-          console.log('Confirmation received, moving to symptoms step');
-          
-          // Move to symptoms step
-          setCurrentStep(4); // symptoms step
-          hasSpokenRef.current = false; // Allow speaking for symptoms
-          setHasFinishedSpeaking(false); // Reset speaking state for new step
-          
-          // Clear any previous state
-          setTranscript('');
+        const userConfirmed = confirmWords.some(word => 
+          speechTranscript.toLowerCase().includes(word.toLowerCase())
+        );
+        
+        if (userConfirmed) {
+          setAvatarExpression('happy');
           setError('');
           
-          // Wait for state to update, then speak symptoms question
           setTimeout(async () => {
-            console.log('Speaking symptoms question');
-            await speak("Please tell me what symptoms you're experiencing today.");
-          }, 300);
-          
-        }, 1000);
+            setCurrentStep(4);
+            hasSpokenRef.current = false;
+            setHasFinishedSpeaking(false);
+            setTranscript('');
+            setError('');
+            
+            setTimeout(async () => {
+              await speak(getTranslation('symptoms', language));
+            }, 300);
+          }, 1000);
+        } else {
+          setAvatarExpression('neutral');
+          setError(language === 'zh' ? '请说"是"确认信息' : 'Please say "yes" to confirm your information');
+          setTimeout(async () => {
+            const confirmationMessage = language === 'zh' 
+              ? `您是${patientData.name}，${patientData.age}岁，身份证号${patientData.nric}。请说"是"确认。`
+              : `You are ${patientData.name}, ${patientData.age} years old, NRIC ${patientData.nric}. Please say yes to confirm.`;
+            await speak(confirmationMessage);
+          }, 1000);
+        }
       } 
       // Handle symptoms step
       else if (currentQuestion.id === 'symptoms') {
@@ -307,7 +325,7 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
           
           // Speak completion message and redirect
           setTimeout(async () => {
-            await speak("Thank you. Your registration is complete. Please proceed to vitals collection.");
+            await speak(getTranslation('complete', language));
             
             // Call onSubmit after speaking
             setTimeout(() => {
@@ -316,10 +334,10 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
           }, 500);
           
         } else {
-          setError("I couldn't hear your symptoms clearly. Please try again.");
+          setError(getTranslation('errorHear', language));
           // Don't automatically restart recording - let user click the button
           setTimeout(async () => {
-            await speak("I couldn't hear your symptoms clearly. Please click the button and tell me your symptoms.");
+            await speak(getTranslation('errorHear', language));
           }, 1000);
         }
       }
@@ -382,7 +400,9 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
       hasSpokenRef.current = true;
       
       // Speak confirmation message
-      const confirmationMessage = `You are ${updatedPatientData.name}, ${updatedPatientData.age} years old, NRIC ${updatedPatientData.nric}. Please say yes to confirm.`;
+      const confirmationMessage = language === 'zh' 
+        ? `您是${updatedPatientData.name}，${updatedPatientData.age}岁，身份证号${updatedPatientData.nric}。请说“是”确认。`
+        : `You are ${updatedPatientData.name}, ${updatedPatientData.age} years old, NRIC ${updatedPatientData.nric}. Please say yes to confirm.`;
       
       setTimeout(async () => {
         await speak(confirmationMessage);
@@ -396,27 +416,42 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
 
   // Only trigger speaking for the initial welcome message
   useEffect(() => {
-    if (currentStep === 0 && audioEnabled && !hasSpokenRef.current && !isSpeaking) {
+    if (currentStep === 0 && audioEnabled && !hasSpokenRef.current && !isSpeaking && !showLanguageSelection) {
       console.log('Starting initial welcome message');
       speak(questions[0].text);
       hasSpokenRef.current = true;
     }
-  }, [currentStep, audioEnabled, isSpeaking]);
+  }, [currentStep, audioEnabled, isSpeaking, showLanguageSelection, language]);
 
   // Debug logging for step changes
   useEffect(() => {
     console.log('Step changed to:', currentStep, 'Question:', questions[currentStep]?.id);
   }, [currentStep]);
+  
+  const handleLanguageSelect = (selectedLanguage) => {
+    setLanguage(selectedLanguage);
+    setShowLanguageSelection(false);
+    // Store language choice globally
+    sessionStorage.setItem('selectedLanguage', selectedLanguage);
+  };
+  
+  if (showLanguageSelection) {
+    return <LanguageSelection onLanguageSelect={handleLanguageSelect} />;
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto flex flex-row items-start space-x-8">
       <div className="flex-1 bg-white p-8 rounded-2xl shadow-xl">
-        <h2 className="text-2xl font-bold mb-4 text-center">AI Avatar Registration</h2>
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-center">{getTranslation('registration', language)}</h2>
+        </div>
         
         <div className="text-center mb-4">
           <p className="text-gray-600 mb-2">
             {currentQuestion.id === 'confirm'
-              ? `You are ${patientData.name}, ${patientData.age} years old, NRIC ${patientData.nric}. Please say yes to confirm.`
+              ? (language === 'zh' 
+                  ? `您是${patientData.name}，${patientData.age}岁，身份证号${patientData.nric}。请说“是”确认。`
+                  : `You are ${patientData.name}, ${patientData.age} years old, NRIC ${patientData.nric}. Please say yes to confirm.`)
               : currentQuestion.text}
           </p>
           {currentQuestion.icon && <currentQuestion.icon className="mx-auto text-blue-600" />}
@@ -438,7 +473,7 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
         {/* NRIC Scanning Interface */}
         {currentQuestion.field === 'nric' && (
           <div className="text-center my-4">
-            <p className="mb-2 text-gray-600">Align your NRIC within the box and click scan.</p>
+            <p className="mb-2 text-gray-600">{getTranslation('holdCard', language)}</p>
             <Webcam
               ref={webcamRef}
               screenshotFormat="image/png"
@@ -449,7 +484,7 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
               onClick={handleScanNric}
               className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 font-medium"
             >
-              Scan NRIC
+              {getTranslation('scanButton', language)}
             </button>
           </div>
         )}

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { Activity, Heart } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import dynamoService from '../services/dynamoService';
 import supabaseService from '../services/supabaseService';
 import preDiagnosisService from '../services/preDiagnosisService';
+import { getTranslation } from '../utils/translations';
 
 const VitalsCollection = ({ patient, onComplete }) => {
-  const navigate = useNavigate();
+  const [language] = useState(() => {
+    return sessionStorage.getItem('selectedLanguage') || 'en';
+  });
+  
   const [vitals, setVitals] = useState({
     systolic: '',
     diastolic: '',
@@ -54,26 +57,20 @@ const VitalsCollection = ({ patient, onComplete }) => {
     const { systolic, diastolic, heartRate } = vitals;
 
     try {
-      // Format vitals data
       const vitalsData = {
-        temperature: 36.5, // Default temperature if not collected
+        temperature: 36.5,
         heartRate: parseInt(heartRate),
         bloodPressure: `${systolic}/${diastolic}`,
-        systolic: parseInt(systolic), // Add systolic separately
-        diastolic: parseInt(diastolic), // Add diastolic separately
-        oxygenLevel: 98, // Default oxygen level if not collected
+        systolic: parseInt(systolic),
+        diastolic: parseInt(diastolic),
+        oxygenLevel: 98,
       };
 
       const patientId = patient?.nric || patient?.id || 'unknown-patient';
       
-      // Save vitals to Supabase
       await supabaseService.saveVitals(patientId, vitalsData);
       
-      // Add to queue with default priority (will be updated when pre-diagnosis completes)
-      await supabaseService.addToQueue(patientId, 'normal');
-      
-      // Generate pre-diagnosis in background (non-blocking)
-      preDiagnosisService.generatePreDiagnosis({
+      const diagnosis = await preDiagnosisService.generatePreDiagnosis({
         name: patient?.name,
         age: patient?.age,
         symptoms: patient?.symptoms || patient?.user_input || "No symptoms reported",
@@ -82,20 +79,14 @@ const VitalsCollection = ({ patient, onComplete }) => {
           bp_systolic: parseInt(systolic),
           bp_diastolic: parseInt(diastolic)
         }
-      }).then(diagnosis => {
-        if (diagnosis.success) {
-          // Update queue priority based on diagnosis
-          const priority = diagnosis.data.urgencyLevel === 'high' ? 'urgent' : 
-                          diagnosis.data.urgencyLevel === 'medium' ? 'high' : 'normal';
-          supabaseService.updateQueuePriority(patientId, priority);
-          // Save pre-diagnosis to database
-          supabaseService.savePreDiagnosis(patientId, diagnosis.data);
-        }
-      }).catch(err => {
-        console.error('Background pre-diagnosis failed:', err);
       });
       
-      // Legacy save
+      if (diagnosis.success) {
+        const priority = diagnosis.data.urgencyLevel === 'high' ? 'urgent' : 
+                        diagnosis.data.urgencyLevel === 'medium' ? 'high' : 'normal';
+        await supabaseService.addToQueue(patientId, priority);
+      }
+      
       if (onComplete) {
         await onComplete({
           ...vitals,
@@ -110,8 +101,7 @@ const VitalsCollection = ({ patient, onComplete }) => {
         user_input: patient?.user_input || patient?.symptoms || "No symptoms reported"
       }));
       
-      navigate('/preparation');
-      // No else clause - always proceed with saving
+      window.location.href = '/preparation';
       
       setSuccess(true);
     } catch (error) {
@@ -124,9 +114,8 @@ const VitalsCollection = ({ patient, onComplete }) => {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-center">Vitals for {patient?.name || 'Patient'}</h2>
+      <h2 className="text-2xl font-bold text-center">{getTranslation('vitalsTitle', language)} {patient?.name || 'Patient'}</h2>
       
-      {/* Display symptoms if available */}
       {(patient?.symptoms || patient?.user_input) && (
         <div className="bg-blue-50 p-4 rounded-lg mb-4">
           <h3 className="font-medium text-blue-800">Reported Symptoms:</h3>
@@ -134,9 +123,8 @@ const VitalsCollection = ({ patient, onComplete }) => {
         </div>
       )}
 
-      {/* Blood Pressure */}
       <div>
-        <label className="block font-medium mb-1">Blood Pressure (mmHg)</label>
+        <label className="block font-medium mb-1">{getTranslation('bloodPressure', language)}</label>
         <div className="flex gap-2">
           <input
             type="number"
@@ -157,9 +145,8 @@ const VitalsCollection = ({ patient, onComplete }) => {
         {errors.diastolic && <p className="text-red-500 text-sm">{errors.diastolic}</p>}
       </div>
 
-      {/* Heart Rate */}
       <div>
-        <label className="block font-medium mb-1">Heart Rate (BPM)</label>
+        <label className="block font-medium mb-1">{getTranslation('heartRate', language)}</label>
         <input
           type="number"
           value={vitals.heartRate}
@@ -170,33 +157,17 @@ const VitalsCollection = ({ patient, onComplete }) => {
         {errors.heartRate && <p className="text-red-500 text-sm">{errors.heartRate}</p>}
       </div>
 
-      {/* Submit */}
       <button
         type="submit"
         disabled={loading}
         className="btn btn-primary w-full"
       >
-        {loading ? 'Saving...' : 'Submit Vitals'}
+        {loading ? getTranslation('saving', language) : getTranslation('submitVitals', language)}
       </button>
 
       {success && (
         <p className="text-green-600 text-center mt-2">Vitals saved successfully!</p>
       )}
-      
-      {/* Admin button to create tables */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <button
-          type="button"
-          onClick={() => {
-            supabaseService.createTables().then(result => {
-              if (result) alert('Tables created or already exist');
-            });
-          }}
-          className="text-xs text-gray-500 underline"
-        >
-          Admin: Create Tables
-        </button>
-      </div>
     </form>
   );
 };

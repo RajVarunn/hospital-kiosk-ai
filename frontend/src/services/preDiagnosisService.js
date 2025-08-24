@@ -11,7 +11,7 @@ const generatePreDiagnosis = async (patientData) => {
     - Oxygen Saturation: ${vitals.oxygen_saturation || 'N/A'}%
     ` : 'No vitals available';
 
-    const prompt = `You are a medical AI assistant. Based on the following patient information, provide a preliminary assessment:
+    const prompt = `You are a medical AI assistant. Based on the following patient information, provide a preliminary assessment. Focus on the cheif complaint. Focus on vitals:
 
 Patient: ${name || 'Unknown'}, Age: ${age || 'N/A'}
 Chief Complaint/Symptoms: ${symptoms || 'No symptoms reported'}
