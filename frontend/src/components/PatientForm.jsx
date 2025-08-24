@@ -3,7 +3,6 @@ import { Mic, Volume2, VolumeX, User, CreditCard, Calendar, CheckCircle } from '
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AvatarViewer from './AvatarViewer';
-import LanguageSelector from './LanguageSelector';
 import LanguageSelection from './LanguageSelection';
 import Webcam from 'react-webcam';
 import dynamoService from '../services/dynamoService';
