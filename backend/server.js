@@ -1,13 +1,6 @@
 require('dotenv').config(); // VERY FIRST LINE
 
-// Polyfill fetch and Headers for OpenAI
-if (!globalThis.fetch) {
-  const fetch = require('node-fetch');
-  globalThis.fetch = fetch;
-  globalThis.Headers = fetch.Headers;
-  globalThis.Request = fetch.Request;
-  globalThis.Response = fetch.Response;
-}
+// No polyfill needed for OpenAI v4
 
 const express = require('express');
 const cors = require('cors');
