@@ -21,7 +21,10 @@ const io = socketIo(server, {
 });
 
 // Global middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json({ limit: '10mb' })); // to support base64

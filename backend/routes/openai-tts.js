@@ -14,6 +14,10 @@ router.post('/tts', async (req, res) => {
     return res.status(400).json({ error: 'Invalid or missing text' });
   }
 
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'OpenAI API key not configured' });
+  }
+
   try {
     const mp3 = await openai.audio.speech.create({
       model: "tts-1",
