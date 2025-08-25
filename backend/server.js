@@ -1,8 +1,12 @@
 require('dotenv').config(); // VERY FIRST LINE
 
-// Polyfill fetch for OpenAI
+// Polyfill fetch and Headers for OpenAI
 if (!globalThis.fetch) {
-  globalThis.fetch = require('node-fetch');
+  const fetch = require('node-fetch');
+  globalThis.fetch = fetch;
+  globalThis.Headers = fetch.Headers;
+  globalThis.Request = fetch.Request;
+  globalThis.Response = fetch.Response;
 }
 
 const express = require('express');
