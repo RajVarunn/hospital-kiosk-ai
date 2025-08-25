@@ -47,6 +47,8 @@ app.get('/api/test', (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Backend server running on port ${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV);
+  console.log('OpenAI Key present:', !!process.env.OPENAI_API_KEY);
 });
