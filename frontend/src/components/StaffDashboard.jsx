@@ -35,7 +35,7 @@ const StaffDashboard = () => {
       // Get queue order from Supabase
       const { data: queueOrder } = await supabase
         .from('queue')
-        .select('patient_id, order_position, priority, status, estimated_wait')
+        .select('patient_id, order_position, priority, status, estimated_wait, joined_at')
         .order('order_position', { ascending: true });
 
       // Transform Supabase data to match dashboard format
@@ -47,6 +47,12 @@ const StaffDashboard = () => {
         
         // Find queue info for this patient
         const queueInfo = queueOrder?.find(q => q.patient_id === patient.id || q.patient_id === patient.nric);
+        
+        // Calculate actual wait time (demo: 1 real minute = 10 displayed minutes)
+        const actualWaitTime = queueInfo?.joined_at 
+          ? Math.floor((new Date() - new Date(queueInfo.joined_at)) / (1000 * 6))
+          : 0;
+        console.log('Wait time for', patient.name, ':', actualWaitTime, 'minutes (joined_at:', queueInfo?.joined_at, ')');
         
         return {
           id: patient.id || patient.nric,
@@ -65,7 +71,8 @@ const StaffDashboard = () => {
           symptoms: patient.symptoms ? [patient.symptoms] : [],
           status: queueInfo?.status || 'waiting',
           priority: queueInfo?.priority || 'normal',
-          estimatedWait: queueInfo?.estimated_wait || (index + 1) * 15,
+          estimatedWait: queueInfo?.estimated_wait || 17,
+          actualWaitTime: actualWaitTime,
           queuePosition: queueInfo?.order_position || 999, // High number for unqueued patients
           vitals: {
             heart_rate: latestVitals.heart_rate,
@@ -119,6 +126,13 @@ const StaffDashboard = () => {
 
   useEffect(() => {
     fetchQueueData();
+    
+    // Auto-refresh every minute to update wait times
+    const interval = setInterval(() => {
+      fetchQueueData();
+    }, 60000); // 60 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Request pre-diagnosis for a patient
@@ -387,7 +401,10 @@ const StaffDashboard = () => {
                                   <p className="text-sm text-gray-500">{entry.department || 'General'} • {entry.appointment_time || 'No time set'}</p>
                                 </div>
                                 <p className="text-sm text-gray-600 mb-2">{entry.chief_complaint || entry.complaint || 'No complaint recorded'}</p>
-                                <p className="text-sm text-orange-600">{entry.estimatedWait || 0}m wait</p>
+                                <div className="flex justify-between text-sm">
+                                  <p className="text-blue-600">Time to see doctor: ~{entry.estimatedWait || 0}m</p>
+                                  <p className="text-red-600">Been waiting: {entry.actualWaitTime || 0}m</p>
+                                </div>
                               </div>
                             )}
                           </Draggable>

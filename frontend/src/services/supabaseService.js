@@ -346,27 +346,55 @@ const supabaseService = {
     try {
       if (!supabase) return null;
       
-      // Get the next position number
-      const { data: maxPos } = await supabase
+      // Check if patient already in queue
+      const { data: existingQueue } = await supabase
         .from('queue')
-        .select('order_position')
-        .order('order_position', { ascending: false })
-        .limit(1);
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('status', 'waiting')
+        .maybeSingle();
       
-      const nextPosition = (maxPos?.[0]?.order_position || 0) + 1;
-      
-      const { data, error } = await supabase
-        .from('queue')
-        .insert({
-          patient_id: patientId,
+      if (existingQueue) {
+        // Update existing entry and reset joined_at to current time
+        const updateData = {
           priority: priority,
-          status: 'waiting',
-          estimated_wait: priority === 'urgent' ? 5 : priority === 'high' ? 15 : 30,
-          order_position: nextPosition
-        });
+          estimated_wait: priority === 'urgent' ? 5 : priority === 'high' ? 7 : 17,
+          updated_at: new Date().toISOString(),
+          joined_at: new Date().toISOString() // Always reset to current time
+        };
+        
+        const { data, error } = await supabase
+          .from('queue')
+          .update(updateData)
+          .eq('patient_id', patientId)
+          .eq('status', 'waiting');
+        
+        if (error) throw error;
+        return data;
+      } else {
+        // Get the next position number
+        const { data: maxPos } = await supabase
+          .from('queue')
+          .select('order_position')
+          .order('order_position', { ascending: false })
+          .limit(1);
+        
+        const nextPosition = (maxPos?.[0]?.order_position || 0) + 1;
+        
+        const { data, error } = await supabase
+          .from('queue')
+          .insert({
+            patient_id: patientId,
+            priority: priority,
+            status: 'waiting',
+            estimated_wait: priority === 'urgent' ? 5 : priority === 'high' ? 7 : 17,
+            order_position: nextPosition,
+            joined_at: new Date().toISOString()
+          });
 
-      if (error) throw error;
-      return data;
+        if (error) throw error;
+        return data;
+      }
     } catch (error) {
       console.error('Error adding to queue:', error);
       return null;
@@ -392,6 +420,25 @@ const supabaseService = {
       return true;
     } catch (error) {
       console.error('Error updating queue order:', error);
+      return null;
+    }
+  },
+
+  // Reset all queue times to current time (for demo purposes)
+  resetQueueTimes: async () => {
+    try {
+      if (!supabase) return null;
+      
+      const { data, error } = await supabase
+        .from('queue')
+        .update({ joined_at: new Date().toISOString() })
+        .eq('status', 'waiting');
+      
+      if (error) throw error;
+      console.log('All queue times reset to current time');
+      return data;
+    } catch (error) {
+      console.error('Error resetting queue times:', error);
       return null;
     }
   }
