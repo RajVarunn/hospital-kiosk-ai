@@ -1,4 +1,10 @@
 require('dotenv').config(); // VERY FIRST LINE
+
+// Polyfill fetch for OpenAI
+if (!globalThis.fetch) {
+  globalThis.fetch = require('node-fetch');
+}
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
