@@ -1,7 +1,7 @@
 export const translations = {
   en: {
     // PatientForm
-    welcome: "Welcome to Hospital Registration",
+    welcome: "Welcome to Hospital Registration. I am Elera and I will guide you today. Hold your NRIC card in front of the camera.",
     scanNric: "Please scan your NRIC",
     holdCard: "Hold your NRIC card in front of the camera",
     scanButton: "Scan NRIC",
@@ -47,7 +47,7 @@ export const translations = {
   
   zh: {
     // PatientForm
-    welcome: "欢迎来到医院登记处",
+    welcome: "欢迎来到医院登记处。我是Elera，今天我将为您提供指导。请将身份证放在摄像头前。",
     scanNric: "请扫描您的身份证",
     holdCard: "请将身份证放在摄像头前",
     scanButton: "扫描身份证",
