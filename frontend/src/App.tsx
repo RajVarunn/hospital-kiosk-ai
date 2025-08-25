@@ -14,8 +14,8 @@ const AppContent = () => {
   
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Navigation - Show in development or for staff pages */}
-      {(isDevelopment || !isKioskFlow) && (
+      {/* Navigation - Always show */}
+      {true && (
         <nav className="bg-white shadow-lg p-4">
           <div className="max-w-7xl mx-auto flex space-x-4">
             <Link to="/" className="text-blue-600 hover:text-blue-800">
