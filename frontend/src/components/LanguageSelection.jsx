@@ -18,9 +18,9 @@ const LanguageSelection = ({ onLanguageSelect }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
-        <div className="text-center mb-8">
+    <div className="h-auto bg-gradient-to-br from-blue-50 to-indigo-100 flex items-start justify-center pt-12 pb-12 px-6">
+      <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+        <div className="text-center mb-6">
           <Globe className="w-16 h-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Select Language</h1>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">选择语言</h2>
