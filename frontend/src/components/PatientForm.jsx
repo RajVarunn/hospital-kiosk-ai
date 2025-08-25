@@ -54,7 +54,8 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
       setAvatarExpression('speaking');
       
       // Use OpenAI's TTS API with language support
-      const res = await axios.post('/api/openai-tts/tts', { 
+      const apiUrl = process.env.REACT_APP_API_URL || '';
+      const res = await axios.post(`${apiUrl}/api/openai-tts/tts`, { 
         text, 
         voice: language === 'zh' ? 'alloy' : 'nova',
         language: language === 'zh' ? 'zh' : 'en'
@@ -141,7 +142,8 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
         formData.append('language', language === 'zh' ? 'zh-CN' : 'en-US');
         
         try {
-          const response = await axios.post('/api/whisper/transcribe', formData);
+          const apiUrl = process.env.REACT_APP_API_URL || '';
+          const response = await axios.post(`${apiUrl}/api/whisper/transcribe`, formData);
           const transcript = response.data.transcript;
           console.log('Transcription received:', transcript);
           
@@ -365,7 +367,8 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
       const formData = new FormData();
       formData.append('image', blob, 'nric.png');
 
-      const res = await axios.post('/api/rekognition/nric', formData);
+      const apiUrl = process.env.REACT_APP_API_URL || '';
+      const res = await axios.post(`${apiUrl}/api/rekognition/nric`, formData);
       console.log('NRIC scan response:', res.data);
       
       const { nric, name, dob } = res.data;

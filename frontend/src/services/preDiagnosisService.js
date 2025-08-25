@@ -32,7 +32,8 @@ Important: This is for preliminary assessment only and should not replace profes
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const response = await fetch('/api/openai/chat', {
+    const apiUrl = process.env.REACT_APP_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/openai/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
