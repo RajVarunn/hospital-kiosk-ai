@@ -475,7 +475,6 @@ const AIAvatarPatientRegistration = ({ onSubmit }) => {
         {/* NRIC Scanning Interface */}
         {currentQuestion.field === 'nric' && (
           <div className="text-center my-4">
-            <p className="mb-2 text-gray-600">{getTranslation('holdCard', language)}</p>
             <Webcam
               ref={webcamRef}
               screenshotFormat="image/png"
